@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Bot, Copy, Menu, Trash2, Check, ArrowUp } from 'lucide-react';
 import { ChatMessageUI } from '../../types';
 import { MarkdownRenderer } from './MarkdownRenderer';
@@ -26,13 +26,49 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
 }) => {
   const [showMenu, setShowMenu] = useState(false);
   const [copiedMessageId, setCopiedMessageId] = useState<string | null>(null);
+  const [isUserAtBottom, setIsUserAtBottom] = useState(true);
   const menuRef = useRef<HTMLDivElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const messagesContainerRef = useRef<HTMLDivElement>(null);
 
-  // Auto-scroll to bottom when messages change
+  // Check if user is at bottom of chat
+  const checkIfUserAtBottom = useCallback(() => {
+    if (!messagesContainerRef.current) return;
+    
+    const { scrollTop, scrollHeight, clientHeight } = messagesContainerRef.current;
+    const isAtBottom = scrollHeight - scrollTop - clientHeight < 50; // 50px threshold
+    setIsUserAtBottom(isAtBottom);
+  }, []);
+
+  // Handle scroll events
+  const handleScroll = useCallback(() => {
+    checkIfUserAtBottom();
+  }, [checkIfUserAtBottom]);
+
+  // Auto-scroll to bottom when messages change, but only if user was at bottom
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages, isAiLoading]);
+    if (isUserAtBottom && messagesContainerRef.current) {
+      messagesContainerRef.current.scrollTo({
+        top: messagesContainerRef.current.scrollHeight,
+        behavior: 'smooth'
+      });
+    }
+  }, [messages, isUserAtBottom]);
+
+  // Auto-scroll during streaming if user is at bottom
+  useEffect(() => {
+    if (streamingMessageIds.size > 0 && isUserAtBottom && messagesContainerRef.current) {
+      messagesContainerRef.current.scrollTo({
+        top: messagesContainerRef.current.scrollHeight,
+        behavior: 'smooth'
+      });
+    }
+  }, [messages, streamingMessageIds, isUserAtBottom]);
+
+  // Initial check for bottom position
+  useEffect(() => {
+    checkIfUserAtBottom();
+  }, [checkIfUserAtBottom]);
 
   // Close menu when clicking outside
   useEffect(() => {
@@ -89,7 +125,11 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
       </div>
 
       {/* Chat Messages */}
-      <div className="flex-1 overflow-y-auto p-6 space-y-6">
+      <div 
+        ref={messagesContainerRef}
+        onScroll={handleScroll}
+        className="flex-1 overflow-y-auto p-6 space-y-6"
+      >
         {messages.length === 0 ? (
           <div className="text-center py-12">
             <div className="w-16 h-16 bg-gradient-to-br from-orange-100 to-red-100 dark:from-orange-900/30 dark:to-red-900/30 rounded-2xl flex items-center justify-center mx-auto mb-4">
@@ -113,7 +153,7 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
               <div className={`max-w-3xl ${message.isUser ? 'text-right' : 'text-left'}`}>
                 {message.isUser ? (
                   // User message - no background, borders, picture, or time
-                  <div className="inline-block px-4 py-3 rounded-2xl bg-orange-600 text-white">
+                  <div className="inline-block px-4 py-3 rounded-2xl bg-orange-600 text-white text-left">
                     <p className="text-sm leading-relaxed">{message.content}</p>
                   </div>
                 ) : (
@@ -157,13 +197,14 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
           ))
         )}
         
-        {isAiLoading && streamingMessageIds.size === 0 && (
+        {/* Loading dots - show when AI is loading and no streaming messages */}
+        {isAiLoading && messages.length > 0 && messages[messages.length - 1]?.isUser && (
           <div className="flex items-start">
             <div className="text-gray-900 dark:text-white">
-              <div className="flex space-x-1">
-                <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce"></div>
-                <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0.1s' }}></div>
-                <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0.2s' }}></div>
+              <div className="flex space-x-1 items-center">
+                <div className="w-2 h-2 bg-orange-500 dark:bg-orange-400 rounded-full animate-bounce"></div>
+                <div className="w-2 h-2 bg-orange-500 dark:bg-orange-400 rounded-full animate-bounce" style={{ animationDelay: '0.1s' }}></div>
+                <div className="w-2 h-2 bg-orange-500 dark:bg-orange-400 rounded-full animate-bounce" style={{ animationDelay: '0.2s' }}></div>
               </div>
             </div>
           </div>

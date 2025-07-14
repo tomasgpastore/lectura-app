@@ -6,6 +6,7 @@ import { pageNavigationPlugin } from '@react-pdf-viewer/page-navigation';
 import { bookmarkPlugin } from '@react-pdf-viewer/bookmark';
 import { zoomPlugin } from '@react-pdf-viewer/zoom';
 import { highlightPlugin, Trigger, RenderHighlightTargetProps } from '@react-pdf-viewer/highlight';
+import { scrollModePlugin, ScrollMode } from '@react-pdf-viewer/scroll-mode';
 import { Document } from '../../types';
 import { slideApi } from '../../lib/api/api';
 import { useParams, useLocation } from 'react-router-dom';
@@ -23,7 +24,7 @@ class LRUCache {
   private cache: Map<string, string>;
   private accessOrder: string[];
 
-  constructor(maxSize: number = 20) {
+  constructor(maxSize: number = 50) {
     this.maxSize = maxSize;
     this.cache = new Map();
     this.accessOrder = [];
@@ -119,6 +120,9 @@ export const DocumentPreview: React.FC<DocumentPreviewProps> = ({
   
   const zoomPluginInstance = zoomPlugin();
   const { zoomTo } = zoomPluginInstance;
+  
+  const scrollModePluginInstance = scrollModePlugin();
+  const { switchScrollMode } = scrollModePluginInstance;
 
 
 
@@ -319,26 +323,26 @@ export const DocumentPreview: React.FC<DocumentPreviewProps> = ({
     onClose();
   }, [currentPage, saveCurrentPage, onClose]);
 
-  // Keyboard navigation for faster page switching
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') {
-        e.preventDefault();
-        goToPrevPage();
-      } else if (e.key === 'ArrowRight' || e.key === 'ArrowDown') {
-        e.preventDefault();
-        goToNextPage();
-      }
-    };
+  // Keyboard navigation disabled in scroll mode to prevent jumping
+  // useEffect(() => {
+  //   const handleKeyDown = (e: KeyboardEvent) => {
+  //     if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') {
+  //       e.preventDefault();
+  //       goToPrevPage();
+  //     } else if (e.key === 'ArrowRight' || e.key === 'ArrowDown') {
+  //       e.preventDefault();
+  //       goToNextPage();
+  //     }
+  //   };
 
-    // Only add event listener when PDF is loaded and viewer is active
-    if (pdfUrl && !loading && !error) {
-      window.addEventListener('keydown', handleKeyDown);
-      return () => {
-        window.removeEventListener('keydown', handleKeyDown);
-      };
-    }
-  }, [pdfUrl, loading, error, goToPrevPage, goToNextPage]);
+  //   // Only add event listener when PDF is loaded and viewer is active
+  //   if (pdfUrl && !loading && !error) {
+  //     window.addEventListener('keydown', handleKeyDown);
+  //     return () => {
+  //       window.removeEventListener('keydown', handleKeyDown);
+  //     };
+  //   }
+  // }, [pdfUrl, loading, error, goToPrevPage, goToNextPage]);
 
 
 
@@ -472,29 +476,26 @@ export const DocumentPreview: React.FC<DocumentPreviewProps> = ({
               <Viewer
                 fileUrl={pdfUrl}
                 plugins={[
-                  pageNavigationPluginInstance, 
                   bookmarkPluginInstance, 
                   zoomPluginInstance,
-                  highlightPluginInstance
+                  highlightPluginInstance,
+                  scrollModePluginInstance
                 ]}
                 defaultScale={SpecialZoomLevel.PageFit}
                 onDocumentLoad={(e) => {
                   setNumPages(e.doc.numPages);
                   setPdfDoc(e.doc); // Store the PDF document for scaling calculations
                   
+                  // Set vertical scroll mode for smooth scrolling
+                  setTimeout(() => {
+                    switchScrollMode(ScrollMode.Vertical);
+                  }, 200);
+                  
                   // Use initialPage prop if provided, otherwise restore saved page or start at page 1
                   const savedPage = getSavedPage();
                   const targetPage = initialPage || savedPage;
                   const finalPage = Math.min(targetPage, e.doc.numPages); // Ensure page exists
                   setCurrentPage(finalPage);
-                  
-                  // Immediate jump to target page if it's not page 1 - no delays for faster navigation
-                  if (finalPage > 1 && jumpToPage) {
-                    // Use requestAnimationFrame for immediate but smooth jumping
-                    requestAnimationFrame(() => {
-                      jumpToPage(finalPage - 1); // jumpToPage is 0-indexed
-                    });
-                  }
                   
                   console.log(`PDF loaded: ${e.doc.numPages} pages, starting at page: ${initialPage}`);
                 }}

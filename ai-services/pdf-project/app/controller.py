@@ -1,5 +1,4 @@
 from fastapi import FastAPI, status, HTTPException
-from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 from typing import Optional
 import logging
@@ -7,8 +6,9 @@ import time
 from app.config import validate_environment
 from app.inbound_pipeline import process_pdf_pipeline, cleanup_inbound_connections
 from app.management_pipeline import delete_vectors_by_metadata, cleanup_management_connections
-from app.outbound_pipeline import (
+from app.outbound_pipeline_nostream import (
     OutboundRequest, 
+    ChatResponseDTO,
     process_outbound_pipeline_optimized,
     cleanup_connections
 )
@@ -219,7 +219,7 @@ async def delete_vectors(request: ManagementRequest):
             detail=f"Internal deletion error: {str(e)}"
         )
 
-@app.post("/outbound", status_code=status.HTTP_200_OK)
+@app.post("/outbound", status_code=status.HTTP_200_OK, response_model=ChatResponseDTO)
 async def query_llm(request: OutboundRequest):
     """
     Process user query through the intelligent outbound pipeline with pre-analysis
@@ -227,18 +227,13 @@ async def query_llm(request: OutboundRequest):
     Pipeline steps:
     1. Pre-outbound analysis: Determine if retrieval is needed and expand query
     2. Conditional retrieval: Only retrieve documents if analysis indicates it's needed
-    3. Stream LLM response with relevant sources (if any)
-    
-    Uses Server-Sent Events (SSE) with the following events:
-    - event: sources (sent once at beginning with RAG sources as JSON, may be empty)
-    - event: token (sent repeatedly for each text chunk)
-    - event: end (sent once at the end)
+    3. Generate complete LLM response with relevant sources (if any)
     
     Args:
         request: Contains course_id, user_id, user_prompt, and optional snapshot
         
     Returns:
-        Server-Sent Events stream with sources and LLM response
+        JSON response with complete LLM response and sources
     """
     logger.info(f"Received intelligent outbound request: course_id={request.course}, user_id={request.user}")
     logger.info(f"User query: '{request.prompt[:100]}...'")
@@ -265,6 +260,7 @@ async def query_llm(request: OutboundRequest):
         
         logger.info(f"✅ Query analysis completed:")
         logger.info(f"   Needs context: {query_analysis.needs_context}")
+        logger.info(f"   Image priority: {query_analysis.image_priority}")
         logger.info(f"   Reasoning: {query_analysis.reasoning}")
         if query_analysis.expanded_query != request.prompt:
             logger.info(f"   Expanded query: '{query_analysis.expanded_query[:100]}...'")
@@ -272,27 +268,18 @@ async def query_llm(request: OutboundRequest):
         # Step 2: Process through optimized outbound pipeline with conditional retrieval
         logger.info("🚀 Step 2: Starting optimized outbound pipeline...")
         
-        async def intelligent_pipeline_generator():
-            """Generator that wraps the outbound pipeline with intelligent pre-analysis"""
-            async for chunk in process_outbound_pipeline_optimized(
-                request=request,
-                expanded_query=query_analysis.expanded_query,
-                needs_context=query_analysis.needs_context
-            ):
-                yield chunk
-        
-        # Stream the response using SSE format
-        return StreamingResponse(
-            intelligent_pipeline_generator(),
-            media_type="text/event-stream",
-            headers={
-                "Cache-Control": "no-cache",
-                "Connection": "keep-alive",
-                "Access-Control-Allow-Origin": "*",
-                "Access-Control-Allow-Headers": "*",
-                "X-Accel-Buffering": "no"  # Disable nginx buffering
-            }
+        response = await process_outbound_pipeline_optimized(
+            request=request,
+            expanded_query=query_analysis.expanded_query,
+            needs_context=query_analysis.needs_context,
+            image_priority=query_analysis.image_priority
         )
+        
+        logger.info(f"✅ Outbound pipeline completed successfully")
+        logger.info(f"   Response length: {len(response.response)} chars")
+        logger.info(f"   Sources found: {len(response.data)}")
+        
+        return response
         
     except Exception as e:
         logger.error(f"Unexpected error in intelligent outbound pipeline: {str(e)}")

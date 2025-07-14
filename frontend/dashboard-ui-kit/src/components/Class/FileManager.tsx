@@ -29,7 +29,7 @@ export const FileManager: React.FC<FileManagerProps> = ({
   onSearchChange,
 }) => {
   return (
-    <div className={`${isCollapsed ? 'w-39' : 'w-96'} p-2 transition-all duration-300`}>
+    <div className={`${isCollapsed ? 'w-39' : 'w-96'} p-2 transition-all duration-200 ease-out will-change-transform`}>
       <div className="bg-white dark:bg-neutral-800 dark:border-neutral-700 rounded-xl border flex flex-col h-full">
         {!isCollapsed ? (
           <>
