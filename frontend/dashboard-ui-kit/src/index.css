@@ -1,0 +1,183 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Prevent page scrolling */
+html, body {
+  overflow: hidden;
+  height: 100%;
+}
+
+#root {
+  height: 100vh;
+  overflow: hidden;
+}
+
+/* PDF Viewer styles */
+.rpv-core__viewer {
+  border: none !important;
+  height: 100% !important;
+}
+
+.rpv-core__viewer-container {
+  overflow: auto !important;
+  height: 100% !important;
+}
+
+.rpv-default-layout__container {
+  height: 100% !important;
+}
+
+.rpv-core__page-layer {
+  user-select: text !important;
+  -webkit-user-select: text !important;
+  -moz-user-select: text !important;
+  -ms-user-select: text !important;
+}
+
+/* Hide all unwanted toolbar elements */
+.rpv-default-layout__toolbar {
+  display: none !important;
+}
+
+.rpv-toolbar {
+  display: none !important;
+}
+
+.rpv-default-layout__main {
+  height: 100% !important;
+}
+
+.rpv-default-layout__body {
+  height: 100% !important;
+}
+
+/* Hide sidebar completely */
+.rpv-default-layout__sidebar {
+  display: none !important;
+}
+
+.rpv-default-layout__container {
+  display: flex !important;
+  flex-direction: column !important;
+  height: 100% !important;
+}
+
+/* PDF viewer styling */
+.rpv-core__inner-pages {
+  padding: 1rem !important;
+}
+
+.rpv-core__page-layer {
+  margin-bottom: 1rem !important;
+  box-shadow: none !important;
+  border-radius: 4px !important;
+}
+
+/* Custom selection popup */
+.pdf-text-selection-popup {
+  position: fixed !important;
+  z-index: 9999 !important;
+  background: white !important;
+  border: 1px solid #ccc !important;
+  border-radius: 6px !important;
+  padding: 8px 12px !important;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15) !important;
+}
+
+/* Dark mode support for popup */
+.dark .pdf-text-selection-popup {
+  background: #374151 !important;
+  border-color: #4b5563 !important;
+  color: white !important;
+}
+
+/* Enhanced popup styling */
+.pdf-text-selection-popup {
+  backdrop-filter: blur(8px) !important;
+  border: 1px solid #e5e7eb !important;
+}
+
+.dark .pdf-text-selection-popup {
+  border-color: #6b7280 !important;
+}
+
+/* React PDF Viewer Highlight Plugin Styles */
+.rpv-highlight__target {
+  border-radius: 2px !important;
+  cursor: pointer !important;
+  transition: background-color 0.2s ease !important;
+}
+
+/* Highlight areas */
+.rpv-highlight__area {
+  border-radius: 2px !important;
+  pointer-events: none !important;
+}
+
+/* Text selection highlighting - ensure smooth performance */
+.rpv-core__text-layer {
+  pointer-events: auto !important;
+  user-select: text !important;
+}
+
+.rpv-core__text-layer .rpv-core__text-layer-text {
+  color: transparent !important;
+  position: absolute !important;
+  white-space: pre !important;
+  cursor: text !important;
+  transform-origin: 0% 0% !important;
+}
+
+/* Optimize selection performance */
+.rpv-core__text-layer .rpv-core__text-layer-text::selection {
+  background: rgba(0, 123, 255, 0.3) !important;
+}
+
+/* Ensure text selection works properly */
+.rpv-core__page-layer,
+.rpv-core__text-layer {
+  -webkit-touch-callout: default !important;
+  -webkit-user-select: text !important;
+  -khtml-user-select: text !important;
+  -moz-user-select: text !important;
+  -ms-user-select: text !important;
+  user-select: text !important;
+}
+
+/* Bookmark dropdown styles */
+.bookmark-popup {
+  z-index: 9999 !important;
+}
+
+.bookmark-popup .rpv-bookmark__container {
+  background: transparent !important;
+  border: none !important;
+}
+
+.bookmark-popup .rpv-bookmark__item {
+  padding: 0.5rem !important;
+  border-radius: 4px !important;
+  margin: 2px 0 !important;
+  cursor: pointer !important;
+}
+
+.bookmark-popup .rpv-bookmark__item:hover {
+  background: #f3f4f6 !important;
+}
+
+.dark .bookmark-popup .rpv-bookmark__item:hover {
+  background: #4b5563 !important;
+}
+
+.bookmark-popup .rpv-bookmark__title {
+  color: #374151 !important;
+  font-size: 0.875rem !important;
+  line-height: 1.25rem !important;
+}
+
+.dark .bookmark-popup .rpv-bookmark__title {
+  color: #f9fafb !important;
+}
+
+ 
