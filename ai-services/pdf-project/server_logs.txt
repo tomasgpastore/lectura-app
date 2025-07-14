@@ -1,0 +1,12 @@
+2025-07-13 01:33:17,870 - numexpr.utils - INFO - NumExpr defaulting to 16 threads.
+INFO:     Started server process [2160]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+ERROR:    [Errno 48] error while attempting to bind on address ('127.0.0.1', 8000): address already in use
+INFO:     Waiting for application shutdown.
+2025-07-13 01:33:19,614 - app.controller - INFO - Application shutting down, cleaning up resources...
+2025-07-13 01:33:19,614 - app.outbound_pipeline - INFO - Outbound pipeline connections cleaned up
+2025-07-13 01:33:19,614 - app.inbound_pipeline - INFO - Inbound pipeline connections cleaned up
+2025-07-13 01:33:19,614 - app.management_pipeline - INFO - Management pipeline connections cleaned up
+2025-07-13 01:33:19,614 - app.controller - INFO - Resource cleanup completed
+INFO:     Application shutdown complete.

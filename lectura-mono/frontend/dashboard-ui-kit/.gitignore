@@ -1,0 +1,53 @@
+# ==========================
+# ENVIRONMENT VARIABLES
+# ==========================
+.env
+.env.*
+ENV/
+
+# ==========================
+# DEPENDENCIES
+# ==========================
+node_modules/
+*.tgz
+
+# ==========================
+# BUILD OUTPUT
+# ==========================
+dist/
+build/
+out/
+.vite/
+
+# ==========================
+# CACHE & TEMP FILES
+# ==========================
+.cache/
+*.log
+*.tmp
+*.swp
+
+# ==========================
+# TYPESCRIPT
+# ==========================
+*.tsbuildinfo
+
+# ==========================
+# TEST COVERAGE
+# ==========================
+coverage/
+*.lcov
+
+# ==========================
+# OS / EDITOR / IDE
+# ==========================
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# ==========================
+# OPTIONAL PACKAGE MANAGER LOCK FILES
+# Uncomment the one(s) you don't use
+# yarn.lock
+# pnpm-lock.yaml
