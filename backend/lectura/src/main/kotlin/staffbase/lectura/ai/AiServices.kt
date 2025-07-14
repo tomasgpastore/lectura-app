@@ -11,6 +11,7 @@ import org.springframework.web.servlet.mvc.method.annotation.SseEmitter
 import staffbase.lectura.ai.chat.ChatMessage
 import staffbase.lectura.ai.chat.ChatService
 import staffbase.lectura.dto.ai.ChatOutboundDTO
+import staffbase.lectura.dto.ai.ChatResponseDTO
 import java.io.BufferedReader
 import java.io.InputStreamReader
 import java.net.HttpURLConnection
@@ -97,7 +98,10 @@ class AiChatService(
 ) {
     
     private val baseUrl = System.getenv("AI_MICROSERVICE_URL")
-    
+
+
+    /*
+    // Streaming response generateAnswer method
     fun generateAnswer(
         userId: String,
         courseId: String,
@@ -183,6 +187,46 @@ class AiChatService(
         
         return emitter
     }
+
+     */
+
+    // Non-streaming response generateAnswer method
+    fun generateAnswer(
+        userId: String,
+        courseId: String,
+        userPrompt: String,
+        snapshot: String? = null
+    ): ChatResponseDTO {
+        // Build the outbound request payload
+        val request = ChatOutboundDTO(
+            course   = courseId,
+            user     = userId,
+            prompt   = userPrompt,
+            snapshot = snapshot
+        )
+
+        // Open and configure the HTTP connection
+        val uri = URI("$baseUrl/outbound")
+        val connection = (uri.toURL().openConnection() as HttpURLConnection).apply {
+            requestMethod = "POST"
+            setRequestProperty("Content-Type", "application/json")
+            setRequestProperty("Accept", "application/json")
+            doOutput = true
+        }
+
+        // Serialize and send the request body
+        connection.outputStream.use { os ->
+            val json = objectMapper.writeValueAsString(request)
+            os.write(json.toByteArray(Charsets.UTF_8))
+        }
+
+        // Read the full JSON response
+        val responseJson = connection.inputStream.bufferedReader().use { it.readText() }
+
+        // Deserialize into ChatResponseDTO and return
+        return objectMapper.readValue(responseJson, ChatResponseDTO::class.java)
+    }
+
     
     private fun saveConversationToRedis(userId: String, courseId: String, userPrompt: String, aiResponse: String) {
         try {

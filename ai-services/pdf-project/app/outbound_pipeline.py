@@ -19,36 +19,23 @@ logger = logging.getLogger(__name__)
 
 # Foundation prompt for markdown responses with source citations
 FOUNDATION_PROMPT = """
-You are an AI assistant that helps students understand class material.
+You are an AI assistant that helps students understand class material. Use the following guidelines to answer questions:
 
-### ✅ Response Format Guidelines:
-1. Always respond in **proper Markdown format**.
-2. Use:
-   - `###` Markdown-style headings for each main concept.
-   - Bullet points (`-`) for lists, key takeaways, or steps.
-   - Code blocks (```) for any code, formatted text, or shell commands.
-3. Keep all paragraphs concise (no more than **2–3 sentences per paragraph**).
-4. When referencing retrieved source information:
-   - Cite it using this exact format: **[Source X]**
-   - Place the citation **naturally in the sentence**, not at the end of the response.
-   - Use the correct number **X** based on the order the sources were provided.
-5. Use **multiple sources** when relevant to provide more complete answers.
-6. Organize your response into **clear, structured sections** using headings.
+### Response Format Guidelines:
+1. Always respond in **proper Markdown format**. Organize your response into **clear, structured sections** using titles and headings.
+2. For each sentence that references a source, add a Markdown citation in the format: [^1], [^2], etc. Place the citation **after punctuation**.
+3. Do not place citations inside quotes or before punctuation. Only use superscript-style references.
+4. At the end of your response, do not include the slide ID or page number.
 
----
-
-### ✅ Response Behavior:
-1. Respond to the user's question **using the provided sources** and/or the page the student is viewing (image provided).
-2. You may **expand the answer using your own knowledge**, but:
+### Response Behavior:
+1. You may **expand the answer using your own knowledge**, but:
    - Do **not cite** any part that comes from your own knowledge.
-3. If the provided sources **do not contain relevant information**, answer using only your own knowledge **and do not cite** anything.
+2. Make sure that the user question is **always answered**, even if the sources do not contain relevant information (respond with your knowledge).
 
----
-
-### ⚠️ Notes:
-- Never hallucinate citations. Only cite if the information **clearly exists** in a source.
-- Do not summarize all sources at the end — integrate citations **inline**.
-- Avoid overly verbose answers or dense text blocks.
+### Notes:
+- Only cite if the information **clearly exists** in a source.
+- Avoid overly verbose answers or dense text blocks. Use /n to break up long paragraphs, /n/n for new sections, and bullet points for clarity.
+- If an image is provided, refer to it as "what you are currently viewing" and if the image is relevant use it to answer the question.
 """
 
 # Global connections - initialized once and reused
@@ -214,12 +201,18 @@ def construct_llm_query_optimized(
 ) -> str:
     """Optimized query construction with numbered sources for citations"""
     
-    query_parts = [FOUNDATION_PROMPT]
+    query_parts = []
     
+        # Add recent chat history (limit to save tokens)
+    if chat_history:
+        query_parts.append("\n## PREVIOUS CONVERSATION WITH STUDENT")
+        for msg in chat_history[-5:]:  # Only last 5 messages
+            role = "Student" if msg.role == "user" else "Assistant"
+            query_parts.append(f"\n**{role}:** {msg.content}")
+
     # Add retrieved sources with numbered formatting for citations
     if retrieved_chunks:
         query_parts.append("\n## SOURCES TO REFERENCE")
-        query_parts.append("Use these sources to answer the user's question. Cite them as [Source X]")
         
         for i, chunk in enumerate(retrieved_chunks, 1):
             metadata = chunk.get("metadata", {})
@@ -231,18 +224,14 @@ def construct_llm_query_optimized(
             # Format sources for easy citation
             query_parts.append(f"\n**Source {i}** (Slide: {slide_id}, Pages: {page_start}-{page_end}):")
             query_parts.append(f"```\n{raw_text[:1200]}\n```")  # Use code blocks for clarity
-    
-    # Add recent chat history (limit to save tokens)
-    if chat_history:
-        query_parts.append("\n## PREVIOUS CONVERSATION WITH STUDENT")
-        for msg in chat_history[-5:]:  # Only last 5 messages
-            role = "Student" if msg.role == "user" else "Assistant"
-            query_parts.append(f"\n**{role}:** {msg.content}")
-    
-    # Add snapshot info if available
+
+    # Add foundation prompt for context
+    query_parts.append("\n## CONSIDER THE FOLLOWING GUIDELINES FOR YOUR ANSWER:")
+    query_parts.append(FOUNDATION_PROMPT)
+
+    # Add current document snapshot if available
     if snapshot:
-        query_parts.append("\n## CURRENT PAGE THE STUDENT IS VIEWING")
-        query_parts.append("The user is currently viewing a specific page from the document (image provided).")
+        query_parts.append("The user is currently viewing a specific page from the document (image provided), and asked the following question:")
     
     # Add current question with emphasis on markdown formatting
     query_parts.append(f"\n## STUDENT QUESTION")

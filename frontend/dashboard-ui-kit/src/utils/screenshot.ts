@@ -1,9 +1,10 @@
 /**
  * Captures a screenshot of the document preview container using HTML5 Canvas API
  * @param elementId - The ID of the element to capture
+ * @param highQuality - Whether to use high quality mode (default: true)
  * @returns Promise<string> - Base64 encoded image string
  */
-export const captureDocumentSnapshot = async (elementId: string): Promise<string | null> => {
+export const captureDocumentSnapshot = async (elementId: string, highQuality: boolean = true): Promise<string | null> => {
   try {
     const element = document.getElementById(elementId);
     if (!element) {
@@ -121,16 +122,60 @@ export const captureDocumentSnapshot = async (elementId: string): Promise<string
       throw new Error('Canvas context not available');
     }
 
-    // Set output canvas size (reduce for bandwidth)
-    const scale = 0.3; // Further reduce quality to save bandwidth
-    outputCanvas.width = targetCanvas.width * scale;
-    outputCanvas.height = targetCanvas.height * scale;
+    // Configure quality based on settings
+    const scale = highQuality ? 1.5 : 1.0; // Use even higher resolution for high quality mode
+    const maxWidth = 2048; // Reasonable maximum to avoid memory issues
+    const maxHeight = 2048;
+    
+    // Calculate actual dimensions
+    let finalWidth = targetCanvas.width * scale;
+    let finalHeight = targetCanvas.height * scale;
+    
+    // Constrain to maximum dimensions while maintaining aspect ratio
+    if (finalWidth > maxWidth || finalHeight > maxHeight) {
+      const aspectRatio = finalWidth / finalHeight;
+      if (finalWidth > finalHeight) {
+        finalWidth = maxWidth;
+        finalHeight = maxWidth / aspectRatio;
+      } else {
+        finalHeight = maxHeight;
+        finalWidth = maxHeight * aspectRatio;
+      }
+    }
+    
+    outputCanvas.width = finalWidth;
+    outputCanvas.height = finalHeight;
 
+    // Configure canvas for optimal text rendering
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = 'high';
+    
+    // Additional context properties for better rendering
+    ctx.textBaseline = 'top';
+    ctx.fillStyle = 'white';
+    ctx.fillRect(0, 0, finalWidth, finalHeight); // White background for better contrast
+    
+    // Apply appropriate scaling  
+    const scaleX = finalWidth / (targetCanvas as HTMLCanvasElement).width;
+    const scaleY = finalHeight / (targetCanvas as HTMLCanvasElement).height;
+    ctx.scale(scaleX, scaleY);
+    
     // Draw the PDF canvas to our output canvas
-    ctx.scale(scale, scale);
     ctx.drawImage(targetCanvas, 0, 0);
 
-    const dataUrl = outputCanvas.toDataURL('image/jpeg', 0.6);
+    // Use high quality PNG for better text recognition, with fallback to compressed JPEG if too large
+    let dataUrl = outputCanvas.toDataURL('image/png');
+    
+    // If PNG is too large (>2MB), fall back to high quality JPEG
+    if (dataUrl.length > 2 * 1024 * 1024) {
+      dataUrl = outputCanvas.toDataURL('image/jpeg', 0.95);
+    }
+    
+    // Log quality info in development
+    if (process.env.NODE_ENV === 'development') {
+      const sizeKB = Math.round(dataUrl.length / 1024);
+      console.log(`📸 Captured snapshot: ${finalWidth}x${finalHeight}, ${sizeKB}KB`);
+    }
     
     return dataUrl;
   } catch (error) {

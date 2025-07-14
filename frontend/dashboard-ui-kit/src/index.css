@@ -6,11 +6,17 @@
 html, body {
   overflow: hidden;
   height: 100%;
+  position: fixed;
+  width: 100%;
 }
 
 #root {
   height: 100vh;
+  width: 100vw;
   overflow: hidden;
+  position: fixed;
+  top: 0;
+  left: 0;
 }
 
 /* PDF Viewer styles */
@@ -22,6 +28,7 @@ html, body {
 .rpv-core__viewer-container {
   overflow: auto !important;
   height: 100% !important;
+  scroll-behavior: smooth !important;
 }
 
 .rpv-default-layout__container {
@@ -72,6 +79,46 @@ html, body {
   margin-bottom: 1rem !important;
   box-shadow: none !important;
   border-radius: 4px !important;
+}
+
+/* Smooth scrolling for vertical mode */
+.rpv-core__inner-pages {
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 1rem !important;
+}
+
+.rpv-core__inner-page {
+  flex-shrink: 0 !important;
+}
+
+/* Prevent automatic page centering/jumping */
+.rpv-core__viewer-container {
+  scroll-snap-type: none !important;
+}
+
+.rpv-core__page-layer {
+  scroll-snap-align: none !important;
+}
+
+/* Override any built-in scroll behavior */
+.rpv-core__viewer {
+  scroll-behavior: smooth !important;
+}
+
+.rpv-core__viewer * {
+  scroll-behavior: inherit !important;
+}
+
+/* Prevent page jumping in vertical scroll mode */
+.rpv-scroll-mode__vertical .rpv-core__page-layer {
+  scroll-snap-align: none !important;
+  scroll-margin: 0 !important;
+}
+
+.rpv-scroll-mode__vertical .rpv-core__viewer-container {
+  scroll-snap-type: none !important;
+  scroll-padding: 0 !important;
 }
 
 /* Custom selection popup */
@@ -143,6 +190,74 @@ html, body {
   -moz-user-select: text !important;
   -ms-user-select: text !important;
   user-select: text !important;
+}
+
+/* KaTeX overrides to prevent layout conflicts */
+.katex-display {
+  margin: 0.75em 0 !important;
+  text-align: center !important;
+}
+
+.katex {
+  font-size: 1.1em !important;
+  line-height: 1.4 !important;
+}
+
+/* Improve inline math spacing */
+.katex-display + p,
+p + .katex-display {
+  margin-top: 0.5em !important;
+}
+
+/* Allow proper math formatting but prevent layout interference */
+.katex .base {
+  position: relative !important;
+}
+
+.katex .sizing {
+  position: relative !important;
+}
+
+.katex .supsub {
+  position: relative !important;
+}
+
+/* Ensure subscripts and superscripts work correctly */
+.katex .msupsub > .vlist-t {
+  position: relative !important;
+}
+
+.katex .mfrac > .vlist-t {
+  position: relative !important;
+}
+
+/* Fix positioning for mathematical elements */
+.katex .vlist-t {
+  position: relative !important;
+}
+
+.katex .vlist-r {
+  position: relative !important;
+}
+
+.katex .vlist {
+  position: relative !important;
+}
+
+/* Allow normal font-size for math elements */
+.katex .sizing.reset-size6.size3 {
+  font-size: inherit !important;
+}
+
+/* Preserve math layout */
+.katex .mord,
+.katex .mop,
+.katex .mbin,
+.katex .mrel,
+.katex .mopen,
+.katex .mclose,
+.katex .mpunct {
+  position: static !important;
 }
 
 /* Bookmark dropdown styles */

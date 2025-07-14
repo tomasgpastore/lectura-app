@@ -22,6 +22,7 @@ class QueryAnalysisResponse(BaseModel):
     expanded_query: str
     needs_context: bool
     reasoning: str
+    image_priority: bool
 
 # Global thread pool for CPU-bound operations
 _thread_pool: Optional[ThreadPoolExecutor] = None
@@ -77,7 +78,7 @@ Analyze this query and determine:
 
 1. **needs_context**: Does this question likely require retrieving documents to answer well?
    - TRUE if: The question asks about specific concepts, facts, procedures, or detailed information that would benefit from document context
-   - FALSE if: It's a follow-up question that can be answered from conversation context, a greeting, clarification request, or general/self-contained question
+   - FALSE if: It's a follow-up question that can be answered from conversation context, a greeting, clarification request, general/self-contained question, OR if the query refers to what the user is currently viewing (since the image provides the context)
 
 2. **expanded_query**: Rewrite the input to include context and detail for better retrieval quality
    - Add relevant keywords and synonyms
@@ -87,22 +88,35 @@ Analyze this query and determine:
 
 3. **reasoning**: Brief explanation of your decision
 
+4. **image_priority**: Does the query seem to refer to what the user is currently viewing/seeing?
+   - TRUE if: The query uses demonstrative words like "this", "that", "these", "those", "here", "there" or phrases like "what I'm seeing", "in this image", "on this page", "in the current view", "what's shown", etc.
+   - FALSE if: The query is general and doesn't reference the current visual context
+
 ## EXAMPLES:
 
 User: "What is a monopoly?"
-Response: {{"expanded_query": "What is a monopoly in business economics? Definition, characteristics, and types of monopolistic market structures", "needs_context": true, "reasoning": "This asks for specific business/economic concepts that would benefit from detailed source material"}}
+Response: {{"expanded_query": "What is a monopoly in business economics? Definition, characteristics, and types of monopolistic market structures", "needs_context": true, "reasoning": "This asks for specific business/economic concepts that would benefit from detailed source material", "image_priority": false}}
 
 User: "Can you explain that in simpler terms?"
-Response: {{"expanded_query": "Can you explain the previous concept in simpler terms with easier language and examples?", "needs_context": false, "reasoning": "This is a follow-up question asking for clarification of previously discussed content"}}
+Response: {{"expanded_query": "Can you explain the previous concept in simpler terms with easier language and examples?", "needs_context": false, "reasoning": "This is a follow-up question asking for clarification of previously discussed content", "image_priority": false}}
+
+User: "What does this formula mean?"
+Response: {{"expanded_query": "What does this mathematical formula or equation mean? Explanation of formula components and meaning", "needs_context": false, "reasoning": "User is asking about a specific formula they're currently viewing - the image provides the context", "image_priority": true}}
+
+User: "Explain this diagram"
+Response: {{"expanded_query": "Explain this diagram, chart, or visual representation and its components", "needs_context": false, "reasoning": "User is specifically asking about a visual element they are currently viewing - the image provides the context", "image_priority": true}}
 
 User: "How do I build a startup?"
-Response: {{"expanded_query": "How to build a successful startup company? Steps, strategies, business planning, and entrepreneurship best practices", "needs_context": true, "reasoning": "This asks for specific business advice and strategies that would benefit from comprehensive source material"}}
+Response: {{"expanded_query": "How to build a successful startup company? Steps, strategies, business planning, and entrepreneurship best practices", "needs_context": true, "reasoning": "This asks for specific business advice and strategies that would benefit from comprehensive source material", "image_priority": false}}
+
+User: "What's shown here?"
+Response: {{"expanded_query": "What is shown in this image, diagram, or current view? Description and explanation of visual content", "needs_context": false, "reasoning": "User is directly asking about what they are currently viewing - the image provides the context", "image_priority": true}}
 
 User: "Thank you, that was helpful"
-Response: {{"expanded_query": "Thank you, that was helpful", "needs_context": false, "reasoning": "This is a social acknowledgment that doesn't require document retrieval"}}
+Response: {{"expanded_query": "Thank you, that was helpful", "needs_context": false, "reasoning": "This is a social acknowledgment that doesn't require document retrieval", "image_priority": false}}
 
 ## OUTPUT FORMAT:
-Return ONLY a valid JSON object with the three fields: expanded_query, needs_context, and reasoning.
+Return ONLY a valid JSON object with the four fields: expanded_query, needs_context, reasoning, and image_priority.
 
 ## YOUR ANALYSIS:"""
 
@@ -146,17 +160,28 @@ Return ONLY a valid JSON object with the three fields: expanded_query, needs_con
             analysis_data = json.loads(clean_text)
             
             # Validate required fields
-            if not all(key in analysis_data for key in ['expanded_query', 'needs_context', 'reasoning']):
+            if not all(key in analysis_data for key in ['expanded_query', 'needs_context', 'reasoning', 'image_priority']):
                 raise ValueError("Missing required fields in analysis response")
+            
+            # If image_priority is true, override needs_context to false
+            needs_context = bool(analysis_data['needs_context'])
+            image_priority = bool(analysis_data['image_priority'])
+            reasoning = analysis_data['reasoning']
+            
+            if image_priority and needs_context:
+                needs_context = False
+                reasoning += " (Context retrieval disabled - user referring to current image)"
             
             result = QueryAnalysisResponse(
                 expanded_query=analysis_data['expanded_query'],
-                needs_context=bool(analysis_data['needs_context']),
-                reasoning=analysis_data['reasoning']
+                needs_context=needs_context,
+                reasoning=reasoning,
+                image_priority=image_priority
             )
             
             logger.info(f"✅ Query analysis completed:")
             logger.info(f"   Needs context: {result.needs_context}")
+            logger.info(f"   Image priority: {result.image_priority}")
             logger.info(f"   Expanded: '{result.expanded_query[:100]}...'")
             logger.info(f"   Reasoning: {result.reasoning}")
             
@@ -196,22 +221,42 @@ def _fallback_analysis(user_query: str, chat_history: List[ChatMessage] = None) 
         "according to", "in the document", "in the book"
     ]
     
+    # Patterns that suggest user is referring to current view
+    image_priority_patterns = [
+        " this ", " that ", " these ", " those ", " here ", " there ",
+        "what's shown", "what is shown", "in this image", "on this page",
+        "current view", "what i'm seeing", "what am i looking at",
+        "explain this", "describe this", "what does this", "how does this"
+    ]
+    
     needs_context = True  # Default to needing context
     reasoning = "Default analysis: assuming document context would be helpful"
+    image_priority = False  # Default to not referring to current view
     
-    # Check for no-context patterns
-    for pattern in no_context_patterns:
+    # Check for image priority patterns
+    for pattern in image_priority_patterns:
         if pattern in query_lower:
-            needs_context = False
-            reasoning = f"Follow-up or conversational query detected: '{pattern}'"
+            image_priority = True
             break
     
-    # Check for context patterns (only if we haven't already decided no context)
-    if needs_context:
-        for pattern in context_patterns:
+    # If image priority is detected, set needs_context to False
+    if image_priority:
+        needs_context = False
+        reasoning = "Image-related query detected: user is referring to current visual content"
+    else:
+        # Check for no-context patterns
+        for pattern in no_context_patterns:
             if pattern in query_lower:
-                reasoning = f"Information-seeking query detected: '{pattern}'"
+                needs_context = False
+                reasoning = f"Follow-up or conversational query detected: '{pattern}'"
                 break
+        
+        # Check for context patterns (only if we haven't already decided no context)
+        if needs_context:
+            for pattern in context_patterns:
+                if pattern in query_lower:
+                    reasoning = f"Information-seeking query detected: '{pattern}'"
+                    break
     
     # Simple query expansion
     expanded_query = user_query
@@ -223,7 +268,8 @@ def _fallback_analysis(user_query: str, chat_history: List[ChatMessage] = None) 
     return QueryAnalysisResponse(
         expanded_query=expanded_query,
         needs_context=needs_context,
-        reasoning=f"Fallback analysis: {reasoning}"
+        reasoning=f"Fallback analysis: {reasoning}",
+        image_priority=image_priority
     )
 
 async def get_chat_history_for_analysis(
@@ -295,7 +341,8 @@ async def process_pre_outbound_pipeline(request: QueryAnalysisRequest) -> QueryA
         result_json = {
             "needs_context": analysis.needs_context,
             "expanded_query": analysis.expanded_query,
-            "reasoning": analysis.reasoning
+            "reasoning": analysis.reasoning,
+            "image_priority": analysis.image_priority
         }
         
         import json

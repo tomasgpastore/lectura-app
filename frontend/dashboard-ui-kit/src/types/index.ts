@@ -87,3 +87,17 @@ export interface ChatFrontDTO {
   userPrompt: string;
   snapshot?: string;
 }
+
+export interface Source {
+  id: string;
+  slide: string;
+  s3file: string;
+  start: string;
+  end: string;
+  text: string;
+}
+
+export interface ChatResponseDTO {
+  data: Source[];
+  response: string;
+}

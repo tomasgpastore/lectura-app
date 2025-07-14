@@ -1,5 +1,10 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
+import remarkMath from 'remark-math';
+import rehypeKatex from 'rehype-katex';
 import { ChatSource } from '../../types';
+import 'katex/dist/katex.min.css';
 
 interface MarkdownRendererProps {
   content: string;
@@ -7,6 +12,7 @@ interface MarkdownRendererProps {
   sourceMapping?: Record<number, ChatSource>;
   isStreaming?: boolean;
   onOpenInFile?: (s3FileName: string, pageStart: number, rawText: string) => void;
+  slides?: Array<{ id: string; originalFileName: string }>;
 }
 
 interface SourceModalProps {
@@ -14,10 +20,15 @@ interface SourceModalProps {
   isOpen: boolean;
   onClose: () => void;
   onOpenInFile?: (s3FileName: string, pageStart: number, rawText: string) => void;
+  slides?: Array<{ id: string; originalFileName: string }>;
 }
 
-const SourceModal: React.FC<SourceModalProps> = ({ source, isOpen, onClose, onOpenInFile }) => {
+const SourceModal: React.FC<SourceModalProps> = ({ source, isOpen, onClose, onOpenInFile, slides = [] }) => {
   if (!isOpen || !source) return null;
+
+  // Find the corresponding slide to get the original filename
+  const slide = slides.find(s => s.id === source.slide_id);
+  const fileName = slide?.originalFileName || source.s3_file_name;
 
   return (
     <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
@@ -40,9 +51,23 @@ const SourceModal: React.FC<SourceModalProps> = ({ source, isOpen, onClose, onOp
         
         <div className="p-6 overflow-y-auto">
           <div className="space-y-4">
-            <div>
-              <div className="text-gray-900 dark:text-white bg-gray-100 dark:bg-neutral-700 p-4 rounded-lg max-h-60 overflow-y-auto whitespace-pre-wrap text-sm leading-relaxed">
-                {source.raw_text}
+            <div className="space-y-3">
+              <div className="grid grid-cols-2 gap-4 text-sm">
+                <div>
+                  <span className="font-medium text-gray-700 dark:text-gray-300">File:</span>
+                  <span className="ml-2 text-gray-900 dark:text-white">{fileName}</span>
+                </div>
+                <div>
+                  <span className="font-medium text-gray-700 dark:text-gray-300">Pages:</span>
+                  <span className="ml-2 text-gray-900 dark:text-white">
+                    {source.page_start === source.page_end ? source.page_start : `${source.page_start}-${source.page_end}`}
+                  </span>
+                </div>
+              </div>
+              <div>
+                <div className="text-gray-900 dark:text-white bg-gray-100 dark:bg-neutral-700 p-4 rounded-lg max-h-60 overflow-y-auto whitespace-pre-wrap text-sm leading-relaxed">
+                  {source.raw_text}
+                </div>
               </div>
             </div>
             
@@ -66,12 +91,13 @@ const SourceModal: React.FC<SourceModalProps> = ({ source, isOpen, onClose, onOp
   );
 };
 
-export const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({ 
+export const MarkdownRenderer: React.FC<MarkdownRendererProps> = React.memo(({ 
   content, 
   sources = [], 
   sourceMapping = {},
   isStreaming = false,
-  onOpenInFile 
+  onOpenInFile,
+  slides = []
 }) => {
   const [selectedSource, setSelectedSource] = useState<ChatSource | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -90,129 +116,157 @@ export const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({
     setSelectedSource(null);
   };
 
-  const renderMarkdown = (text: string) => {
-    let parts = [];
-    let currentText = text;
-    let key = 0;
-
-    // Split by source citations [Source X] or [Source X, Source Y, ...]
-    const sourceRegex = /\[Source ([^\]]+)\]/g;
+  // Function to process text and convert citations to buttons
+  const processTextForCitations = (text: string): React.ReactNode[] => {
+    // First handle cursor marker
+    const hasCursor = text.includes('⟨CURSOR⟩');
+    const cleanText = text.replace('⟨CURSOR⟩', '');
+    
+    // Updated regex to handle both single citations [^1], multiple citations [^1, ^2, ^3], and [^Current Page]
+    const citationRegex = /\[\^([0-9, ]+|Current Page)\]/g;
+    const parts: React.ReactNode[] = [];
     let lastIndex = 0;
-    let match;
+    let match: RegExpExecArray | null;
 
-    while ((match = sourceRegex.exec(text)) !== null) {
-      // Add text before the source
+    while ((match = citationRegex.exec(cleanText))) {
+      // Add text before citation
       if (match.index > lastIndex) {
-        const beforeText = text.slice(lastIndex, match.index);
-        parts.push(
-          <span key={key++}>
-            {renderTextWithMarkdown(beforeText)}
-          </span>
-        );
+        parts.push(cleanText.slice(lastIndex, match.index));
       }
 
-      // Parse multiple source numbers (e.g., "1, 2" or "1")
-      const sourceNumbers = match[1]
-        .split(',')
-        .map(s => s.trim())
-        .map(s => parseInt(s.replace(/Source\s*/i, '')))
-        .filter(n => !isNaN(n));
-
-      // Add source buttons
-      const sourceButtons = sourceNumbers.map((sourceNumber, index) => (
-        <button
-          key={`${key++}-${sourceNumber}`}
-          onClick={() => handleSourceClick(sourceNumber)}
-          className="inline-flex items-center px-2 py-1 text-xs font-medium bg-orange-100 hover:bg-orange-200 dark:bg-orange-900 dark:hover:bg-orange-800 text-orange-800 dark:text-orange-200 rounded-md transition-colors mx-0.5"
-        >
-{sourceNumber}
-        </button>
-      ));
-
-      parts.push(
-        <span key={key++} className="inline-flex items-center flex-wrap gap-1">
-          {sourceButtons}
-        </span>
-      );
+      // Parse multiple source numbers from the match
+      const sourceNumbersStr = match[1];
+      
+      // Handle [^Current Page] special case
+      if (sourceNumbersStr === 'Current Page') {
+        const currentPageButton = (
+          <button
+            key={`citation-current-page-${match!.index}`}
+            className="inline-flex items-center px-1.5 py-0.5 ml-0.5 mr-0.5 text-xs font-medium bg-blue-100 hover:bg-blue-200 dark:bg-blue-900 dark:hover:bg-blue-800 text-blue-800 dark:text-blue-200 rounded transition-colors cursor-pointer border border-blue-200 dark:border-blue-700"
+            title="Current Page"
+          >
+            Current Page
+          </button>
+        );
+        parts.push(currentPageButton);
+      } else {
+        const sourceNumbers = sourceNumbersStr.split(',').map(num => parseInt(num.trim())).filter(num => !isNaN(num));
+        
+        // Create buttons for each source number
+        const citationButtons = sourceNumbers.map((sourceNumber, index) => (
+          <button
+            key={`citation-${sourceNumber}-${match!.index}-${index}`}
+            onClick={() => handleSourceClick(sourceNumber)}
+            className="inline-flex items-center px-1.5 py-0.5 ml-0.5 mr-0.5 text-xs font-medium bg-orange-100 hover:bg-orange-200 dark:bg-orange-900 dark:hover:bg-orange-800 text-orange-800 dark:text-orange-200 rounded transition-colors cursor-pointer border border-orange-200 dark:border-orange-700"
+            title={`View source ${sourceNumber}`}
+          >
+            {sourceNumber}
+          </button>
+        ));
+        parts.push(...citationButtons);
+      }
 
       lastIndex = match.index + match[0].length;
     }
 
     // Add remaining text
-    if (lastIndex < text.length) {
-      const remainingText = text.slice(lastIndex);
+    if (lastIndex < cleanText.length) {
+      parts.push(cleanText.slice(lastIndex));
+    }
+
+    // Add cursor at the end if it was in the original text
+    if (hasCursor) {
       parts.push(
-        <span key={key++}>
-          {renderTextWithMarkdown(remainingText)}
-        </span>
+        <span key="cursor" className="inline-block w-0.5 h-4 bg-orange-600 dark:bg-orange-400 animate-pulse ml-0.5" style={{ verticalAlign: 'baseline' }} />
       );
     }
 
-    return parts.length > 0 ? parts : renderTextWithMarkdown(text);
+    // If no citations found, return original text as array
+    return parts.length === 0 ? [cleanText] : parts;
   };
 
-  const renderTextWithMarkdown = (text: string) => {
-    // Handle basic markdown: **bold**, *italic*, `code`
-    const parts = [];
-    let currentText = text;
-    let key = 0;
+  // Process content and add cursor at the end if streaming
+  const processedContent = useMemo(() => {
+    if (isStreaming && content) {
+      // Add a special marker at the end that we can replace with cursor
+      return content + '⟨CURSOR⟩';
+    }
+    return content;
+  }, [content, isStreaming]);
 
-    // Bold text **text**
-    currentText = currentText.replace(/\*\*(.*?)\*\*/g, (match, p1) => {
-      const placeholder = `__BOLD_${key++}__`;
-      parts.push({ type: 'bold', content: p1, placeholder });
-      return placeholder;
-    });
-
-    // Italic text *text*
-    currentText = currentText.replace(/\*(.*?)\*/g, (match, p1) => {
-      const placeholder = `__ITALIC_${key++}__`;
-      parts.push({ type: 'italic', content: p1, placeholder });
-      return placeholder;
-    });
-
-    // Inline code `text`
-    currentText = currentText.replace(/`(.*?)`/g, (match, p1) => {
-      const placeholder = `__CODE_${key++}__`;
-      parts.push({ type: 'code', content: p1, placeholder });
-      return placeholder;
-    });
-
-    // Split by placeholders and render
-    let result = [currentText];
-    parts.forEach((part, index) => {
-      result = result.flatMap(item => {
-        if (typeof item === 'string' && item.includes(part.placeholder)) {
-          const splitParts = item.split(part.placeholder);
-          const renderedPart = part.type === 'bold' 
-            ? <strong key={`bold-${index}`}>{part.content}</strong>
-            : part.type === 'italic'
-            ? <em key={`italic-${index}`}>{part.content}</em>
-            : <code key={`code-${index}`} className="bg-gray-100 dark:bg-neutral-700 px-1 py-0.5 rounded text-sm font-mono">{part.content}</code>;
-          
-          return splitParts.length > 1 
-            ? [splitParts[0], renderedPart, ...splitParts.slice(1)]
-            : [renderedPart];
-        }
-        return [item];
-      });
-    });
-
-    return result.map((item, index) => 
-      typeof item === 'string' ? (
-        <span key={index}>{item}</span>
-      ) : item
-    );
+  // Custom components for react-markdown
+  const components = {
+    // Handle paragraphs to process citations properly
+    p: ({ children }: { children: React.ReactNode }) => {
+      return (
+        <p className="mb-4">
+          {React.Children.map(children, (child) => {
+            if (typeof child === 'string') {
+              return processTextForCitations(child);
+            }
+            return child;
+          })}
+        </p>
+      );
+    },
+    
+    // Style code blocks
+    code: ({ className, children, ...rest }: { className?: string; children: React.ReactNode }) => {
+      return (
+        <code
+          className={`${className || ''} bg-gray-100 dark:bg-neutral-700 px-2 py-1 rounded text-sm font-mono`}
+          {...rest}
+        >
+          {children}
+        </code>
+      );
+    },
+    
+    // Style pre blocks (code blocks)
+    pre: ({ children }: { children: React.ReactNode }) => {
+      return (
+        <pre className="bg-gray-100 dark:bg-neutral-700 p-4 rounded-lg overflow-x-auto">
+          {children}
+        </pre>
+      );
+    },
+    
+    // Style links
+    a: ({ href, children, ...rest }: { href?: string; children: React.ReactNode }) => {
+      return (
+        <a
+          href={href}
+          className="text-orange-600 dark:text-orange-400 hover:text-orange-700 dark:hover:text-orange-300 underline"
+          target="_blank"
+          rel="noopener noreferrer"
+          {...rest}
+        >
+          {children}
+        </a>
+      );
+    },
+    
+    // Style blockquotes
+    blockquote: ({ children }: { children: React.ReactNode }) => {
+      return (
+        <blockquote className="border-l-4 border-orange-200 dark:border-orange-800 pl-4 italic text-gray-700 dark:text-gray-300">
+          {children}
+        </blockquote>
+      );
+    },
   };
 
   return (
     <>
       <div className="prose prose-sm max-w-none dark:prose-invert">
-        <div className="whitespace-pre-wrap">
-          {renderMarkdown(content)}
-          {isStreaming && (
-            <span className="inline-block w-0.5 h-4 bg-orange-600 dark:bg-orange-400 animate-pulse ml-0.5" />
-          )}
+        <div className="leading-relaxed text-gray-900 dark:text-gray-100">
+          <ReactMarkdown
+            remarkPlugins={[remarkGfm, remarkMath]}
+            rehypePlugins={[rehypeKatex]}
+            components={components}
+          >
+            {processedContent}
+          </ReactMarkdown>
         </div>
       </div>
       
@@ -221,7 +275,8 @@ export const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({
         isOpen={isModalOpen}
         onClose={closeModal}
         onOpenInFile={onOpenInFile}
+        slides={slides}
       />
     </>
   );
-};
+});

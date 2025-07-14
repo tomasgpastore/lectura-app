@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useCallback } from 'react';
 import { FileText, MoreVertical, Edit3, Trash2, Loader2 } from 'lucide-react';
 import { Document } from '../../types';
 import { formatFileSize } from '../../utils/class/documentUtils';
@@ -10,7 +10,7 @@ interface DocumentListProps {
   onEditDocument?: (document: Document) => void;
 }
 
-export const DocumentList: React.FC<DocumentListProps> = ({
+export const DocumentList: React.FC<DocumentListProps> = React.memo(({
   documents,
   onPreviewDocument,
   onDeleteConfirmation,
@@ -18,27 +18,27 @@ export const DocumentList: React.FC<DocumentListProps> = ({
 }) => {
   const [openMenuId, setOpenMenuId] = useState<string | null>(null);
 
-  const handleDocumentClick = (doc: Document) => {
+  const handleDocumentClick = useCallback((doc: Document) => {
     if (doc.isLoading) return; // Don't allow clicking loading documents
     onPreviewDocument(doc);
-  };
+  }, [onPreviewDocument]);
 
-  const handleMenuToggle = (docId: string, event: React.MouseEvent) => {
+  const handleMenuToggle = useCallback((docId: string, event: React.MouseEvent) => {
     event.stopPropagation(); // Prevent document click
     setOpenMenuId(openMenuId === docId ? null : docId);
-  };
+  }, [openMenuId]);
 
-  const handleEdit = (doc: Document, event: React.MouseEvent) => {
+  const handleEdit = useCallback((doc: Document, event: React.MouseEvent) => {
     event.stopPropagation();
     setOpenMenuId(null);
     onEditDocument?.(doc);
-  };
+  }, [onEditDocument]);
 
-  const handleDelete = (doc: Document, event: React.MouseEvent) => {
+  const handleDelete = useCallback((doc: Document, event: React.MouseEvent) => {
     event.stopPropagation();
     setOpenMenuId(null);
     onDeleteConfirmation(doc);
-  };
+  }, [onDeleteConfirmation]);
 
   // Close menu when clicking outside
   React.useEffect(() => {
@@ -70,7 +70,7 @@ export const DocumentList: React.FC<DocumentListProps> = ({
               : 'hover:bg-gray-50 dark:hover:bg-neutral-700 cursor-pointer'
           }`}
         >
-          <div className="flex items-start justify-between">
+          <div className="flex items-center justify-between">
             <div className="flex items-start space-x-3 flex-1 min-w-0">
               <div className="w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0">
                 {doc.isLoading ? (
@@ -99,13 +99,13 @@ export const DocumentList: React.FC<DocumentListProps> = ({
             
             {/* 3-dot menu - only show for non-loading documents */}
             {!doc.isLoading && (
-              <div className="relative">
+              <div className="relative ml-4">
                 <button
                   onClick={(e) => handleMenuToggle(doc.id, e)}
-                  className="p-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors opacity-0 group-hover:opacity-100"
+                  className="p-1 text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-neutral-800 hover:text-gray-900 dark:hover:text-gray-300 opacity-0 group-hover:opacity-100 rounded transition-all duration-200 ease-in-out"
                   title="More options"
                 >
-                  <MoreVertical className="w-4 h-4" />
+                  <MoreVertical className="w-4 h-4"/>
                 </button>
                 
                 {/* Dropdown Menu */}
@@ -136,4 +136,4 @@ export const DocumentList: React.FC<DocumentListProps> = ({
       ))}
     </div>
   );
-}; 
+}); 
