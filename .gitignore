@@ -133,3 +133,17 @@ docker-compose.override.yml
 
 node_modules/
 ai-services/pdf-project/multilingual-minilm-local/model.safetensors
+# Python virtual environment
+venv*
+
+# Local database files
+ai-services/pdf-project/chroma_data/
+ai-services/pdf-project/database/chroma_data/
+*.sqlite3
+
+# Local ML models
+ai-services/pdf-project/embedding/multilingual-minilm-local/
+
+# Log files
+*.log
+server_logs.txt

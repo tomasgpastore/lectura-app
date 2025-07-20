@@ -1,22 +1,26 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { FileText, X, ChevronLeft, ChevronRight, Bookmark } from 'lucide-react';
 import { debounce } from '../../utils/debounce';
-import { Worker, Viewer, SpecialZoomLevel } from '@react-pdf-viewer/core';
-import { pageNavigationPlugin } from '@react-pdf-viewer/page-navigation';
-import { bookmarkPlugin } from '@react-pdf-viewer/bookmark';
-import { zoomPlugin } from '@react-pdf-viewer/zoom';
-import { highlightPlugin, Trigger, RenderHighlightTargetProps } from '@react-pdf-viewer/highlight';
-import { scrollModePlugin, ScrollMode } from '@react-pdf-viewer/scroll-mode';
 import { Document } from '../../types';
 import { slideApi } from '../../lib/api/api';
 import { useParams, useLocation } from 'react-router-dom';
 
-// Import only the core styles
+// Core imports
+import { Viewer, Worker, SpecialZoomLevel, ScrollMode, SetRenderRange, VisiblePagesRange } from '@react-pdf-viewer/core';
+
+// Plugin imports
+import { bookmarkPlugin } from '@react-pdf-viewer/bookmark';
+import { highlightPlugin, RenderHighlightTargetProps, Trigger } from '@react-pdf-viewer/highlight';
+import { pageNavigationPlugin } from '@react-pdf-viewer/page-navigation';
+import { scrollModePlugin } from '@react-pdf-viewer/scroll-mode';
+import { zoomPlugin } from '@react-pdf-viewer/zoom';
+
+// Import CSS files
 import '@react-pdf-viewer/core/lib/styles/index.css';
-import '@react-pdf-viewer/page-navigation/lib/styles/index.css';
 import '@react-pdf-viewer/bookmark/lib/styles/index.css';
-import '@react-pdf-viewer/zoom/lib/styles/index.css';
 import '@react-pdf-viewer/highlight/lib/styles/index.css';
+import '@react-pdf-viewer/page-navigation/lib/styles/index.css';
+import '@react-pdf-viewer/zoom/lib/styles/index.css';
 
 // PDF Cache with LRU eviction to prevent memory leaks
 class LRUCache {
@@ -68,6 +72,17 @@ class LRUCache {
     return this.cache.has(key);
   }
 
+  delete(key: string): void {
+    if (this.cache.has(key)) {
+      const url = this.cache.get(key);
+      if (url) {
+        URL.revokeObjectURL(url);
+      }
+      this.cache.delete(key);
+      this.accessOrder = this.accessOrder.filter(k => k !== key);
+    }
+  }
+
   clear(): void {
     // Clean up all blob URLs
     this.cache.forEach(url => URL.revokeObjectURL(url));
@@ -99,22 +114,36 @@ export const DocumentPreview: React.FC<DocumentPreviewProps> = ({
   const [pdfUrl, setPdfUrl] = useState<string | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
-  const [currentPage, setCurrentPage] = useState<number>(1);
+  const [currentPage, setCurrentPage] = useState<number>(() => {
+    // Initialize with saved page or initialPage prop
+    if (initialPage) return initialPage;
+    if (courseId && document.id) {
+      const saved = localStorage.getItem(`pdf-page-${courseId}-${document.id}`);
+      return saved ? parseInt(saved, 10) : 1;
+    }
+    return 1;
+  });
   const [numPages, setNumPages] = useState<number>(0);
   const [showBookmarks, setShowBookmarks] = useState<boolean>(false);
   const [pdfDoc, setPdfDoc] = useState<any>(null);
-  
+  const [totalHeight, setTotalHeight] = useState<number>(0);
+  const [pageHeight, setPageHeight] = useState<number>(0);
   const containerRef = useRef<HTMLDivElement>(null);
+  const viewerRef = useRef<HTMLDivElement>(null);
   const cacheKey = `${courseId}_${document.id}`;
-
+  
   // Check if this is a PDF file
   const isPDF = document.type.toLowerCase().includes('pdf') || 
                 document.name.toLowerCase().endsWith('.pdf');
+
+  // Debug logging
+  console.log('Current state:', { loading, error, pdfUrl: !!pdfUrl, isPDF, courseId, documentType: document.type, documentName: document.name });
 
   // Create plugins with optimizations
   const pageNavigationPluginInstance = pageNavigationPlugin();
   const { jumpToPage } = pageNavigationPluginInstance;
   
+  // Enhanced bookmark plugin with instant navigation
   const bookmarkPluginInstance = bookmarkPlugin();
   const { Bookmarks } = bookmarkPluginInstance;
   
@@ -122,9 +151,24 @@ export const DocumentPreview: React.FC<DocumentPreviewProps> = ({
   const { zoomTo } = zoomPluginInstance;
   
   const scrollModePluginInstance = scrollModePlugin();
-  const { switchScrollMode } = scrollModePluginInstance;
 
-
+  // Virtual rendering optimization - only render visible pages + buffer
+  const setRenderRange: SetRenderRange = useCallback((visiblePagesRange: VisiblePagesRange) => {
+    // Render visible pages plus 5 pages before and after for smooth scrolling
+    // This significantly improves performance for large documents
+    const optimizedRange = {
+      startPage: Math.max(0, visiblePagesRange.startPage - 5),
+      endPage: visiblePagesRange.endPage + 5,
+    };
+    
+    console.log('Virtual rendering optimization:', {
+      visible: visiblePagesRange,
+      optimized: optimizedRange,
+      totalRendered: optimizedRange.endPage - optimizedRange.startPage + 1
+    });
+    
+    return optimizedRange;
+  }, []);
 
   // Enhanced highlight plugin for better text selection
   const renderHighlightTarget = useCallback((props: RenderHighlightTargetProps) => {
@@ -166,6 +210,111 @@ export const DocumentPreview: React.FC<DocumentPreviewProps> = ({
     renderHighlightTarget,
   });
 
+  // Advanced height calculation that works with all document types
+  const calculateTotalHeight = useCallback(async (doc: any) => {
+    if (!doc || !containerRef.current) return;
+    
+    try {
+      console.log('Starting height calculation for', doc.numPages, 'pages');
+      
+      // Get container width for scaling calculations
+      const containerWidth = containerRef.current.clientWidth - 32;
+      
+      // Calculate heights for ALL pages (handles different page sizes properly)
+      const pageHeights: number[] = [];
+      let totalHeightSum = 0;
+      
+      for (let i = 1; i <= doc.numPages; i++) {
+        const page = await doc.getPage(i);
+        const viewport = page.getViewport({ scale: 1 });
+        
+        // Calculate the actual scale being used
+        const scale = containerWidth / viewport.width;
+        const finalScale = Math.max(0.3, scale);
+        
+        // Get the scaled height for this specific page
+        const scaledHeight = viewport.height * finalScale;
+        pageHeights.push(scaledHeight);
+        totalHeightSum += scaledHeight;
+      }
+      
+      // Calculate total with realistic gaps
+      const pageGap = 8; // react-pdf-viewer's default gap
+      const viewerPadding = 20; // Top and bottom padding
+      const totalGaps = Math.max(0, doc.numPages - 1) * pageGap;
+      
+      const calculatedTotal = totalHeightSum + totalGaps + viewerPadding;
+      
+      // Store individual page height for reference (average)
+      const avgPageHeight = totalHeightSum / doc.numPages;
+      setPageHeight(avgPageHeight);
+      setTotalHeight(calculatedTotal);
+      
+      console.log('Height calculation complete:', {
+        numPages: doc.numPages,
+        pageHeights: pageHeights.slice(0, 3), // Show first 3 pages
+        avgPageHeight,
+        totalHeightSum,
+        totalGaps,
+        calculatedTotal,
+        containerWidth,
+        scale: containerWidth / pageHeights[0] // Sample scale
+      });
+      
+      // Enhanced measurement verification after rendering
+      setTimeout(() => {
+        measureAndAdjustHeight(calculatedTotal);
+      }, 1500); // Longer delay for complex documents
+      
+    } catch (error) {
+      console.error('Error calculating total height:', error);
+      // Enhanced fallback based on document type detection
+      const estimatedPageHeight = 842; // A4 at typical scale
+      const buffer = 100;
+      const fallbackTotal = (estimatedPageHeight * doc.numPages) + buffer;
+      setTotalHeight(fallbackTotal);
+      setPageHeight(estimatedPageHeight);
+    }
+  }, []);
+
+  // Measure actual rendered height and adjust if needed
+  const measureAndAdjustHeight = useCallback((estimatedHeight: number) => {
+    if (!viewerRef.current) return;
+    
+    try {
+      // Find all rendered page elements
+      const pageElements = viewerRef.current.querySelectorAll('[data-testid^="core__page-layer-"]');
+      
+      if (pageElements.length > 0) {
+        // Get the bounds of all pages
+        const firstPage = pageElements[0];
+        const lastPage = pageElements[pageElements.length - 1];
+        
+        const firstRect = firstPage.getBoundingClientRect();
+        const lastRect = lastPage.getBoundingClientRect();
+        const viewerRect = viewerRef.current.getBoundingClientRect();
+        
+        // Calculate actual content height
+        const actualContentHeight = (lastRect.bottom - firstRect.top) + 40; // Small buffer
+        
+        // Use the larger of estimated vs actual height
+        const finalHeight = Math.max(estimatedHeight, actualContentHeight);
+        
+        if (Math.abs(finalHeight - estimatedHeight) > 50) { // Only update if significant difference
+          console.log('Adjusting height after measurement:', {
+            estimated: estimatedHeight,
+            measured: actualContentHeight,
+            final: finalHeight,
+            renderedPages: pageElements.length
+          });
+          setTotalHeight(finalHeight);
+        }
+      }
+    } catch (error) {
+      console.error('Error measuring actual height:', error);
+    }
+  }, []);
+
   // Optimized dynamic scaling using actual PDF page dimensions
   useEffect(() => {
     if (!containerRef.current || !zoomTo || !pdfDoc) return;
@@ -183,20 +332,41 @@ export const DocumentPreview: React.FC<DocumentPreviewProps> = ({
           
           // Calculate zoom to fit container width exactly
           const targetZoom = containerWidth / pageWidth;
-          zoomTo(Math.max(0.3, targetZoom));
+          const finalZoom = Math.max(0.3, targetZoom);
+          
+          zoomTo(finalZoom);
+          
+          // Recalculate total height when zoom changes
+          setTimeout(() => {
+            calculateTotalHeight(pdfDoc);
+          }, 200); // Small delay to allow zoom to take effect
           
         } catch (error) {
           console.error('Error getting page dimensions:', error);
           // Fallback
           const containerWidth = containerRef.current.clientWidth - 32;
           const targetZoom = containerWidth / 595;
-          zoomTo(Math.max(0.3, targetZoom));
+          const finalZoom = Math.max(0.3, targetZoom);
+          zoomTo(finalZoom);
+          
+          // Fallback height calculation
+          setTimeout(() => {
+            calculateTotalHeight(pdfDoc);
+          }, 200);
         }
       }
     };
 
     const resizeObserver = new ResizeObserver(() => {
-      setTimeout(updateScale, 50);
+      setTimeout(() => {
+        updateScale();
+        // Also recalculate height on container resize
+        if (pdfDoc) {
+          setTimeout(() => {
+            calculateTotalHeight(pdfDoc);
+          }, 300); // Additional delay after scale update
+        }
+      }, 50);
     });
 
     resizeObserver.observe(containerRef.current);
@@ -207,7 +377,7 @@ export const DocumentPreview: React.FC<DocumentPreviewProps> = ({
     return () => {
       resizeObserver.disconnect();
     };
-  }, [zoomTo, pdfDoc]);
+  }, [zoomTo, pdfDoc, calculateTotalHeight]);
 
   // Clean up cache and save page when navigating away
   useEffect(() => {
@@ -222,17 +392,18 @@ export const DocumentPreview: React.FC<DocumentPreviewProps> = ({
       if (location.pathname !== currentPath) {
         const cachedUrl = pdfCache.get(cacheKey);
         if (cachedUrl) {
-          URL.revokeObjectURL(cachedUrl);
           pdfCache.delete(cacheKey);
         }
       }
     };
   }, [location.pathname, cacheKey, currentPage]);
 
-  // Optimized PDF loading with better caching
+  // Download PDF to browser to handle S3 expiration
   useEffect(() => {
     const loadPdfUrl = async () => {
+      console.log('loadPdfUrl effect running', { isPDF, courseId, document: document.name });
       if (!isPDF || !courseId) {
+        console.log('Not PDF or no courseId, setting loading to false');
         setLoading(false);
         return;
       }
@@ -244,28 +415,39 @@ export const DocumentPreview: React.FC<DocumentPreviewProps> = ({
         // Check cache first
         const cachedUrl = pdfCache.get(cacheKey);
         if (cachedUrl) {
+          console.log('Using cached PDF');
           setPdfUrl(cachedUrl);
           setLoading(false);
           return;
         }
 
-        // Fetch PDF and create blob URL for better performance
+        console.log('Downloading PDF to browser...');
+        
+        // Fetch PDF and create blob URL to handle S3 expiration
         const presignedUrl = await slideApi.getPresignedUrl(courseId, document.id);
+        console.log('Got presigned URL:', presignedUrl);
         const response = await fetch(presignedUrl);
         
         if (!response.ok) {
-          throw new Error('Failed to fetch PDF');
+          throw new Error(`Failed to fetch PDF: ${response.status}`);
         }
         
+        // Download the entire PDF to browser memory
         const blob = await response.blob();
+        console.log(`PDF downloaded: ${blob.size} bytes`);
+        
+        // Create permanent blob URL that won't expire
         const blobUrl = URL.createObjectURL(blob);
+        console.log('Created blob URL:', blobUrl);
         
         // Cache the URL for better performance
         pdfCache.set(cacheKey, blobUrl);
         setPdfUrl(blobUrl);
         
+        console.log('PDF ready for viewing');
+        
       } catch (err) {
-        console.error('Failed to load PDF URL:', err);
+        console.error('Failed to load PDF:', err);
         setError('Failed to load document');
       } finally {
         setLoading(false);
@@ -294,24 +476,41 @@ export const DocumentPreview: React.FC<DocumentPreviewProps> = ({
     return 1;
   }, [courseId, document.id]);
 
-  // Optimized page navigation with immediate jumping and no animation delays
+  // Simple page navigation using jumpToPage with instant navigation
   const goToPrevPage = useCallback(() => {
+    console.log('goToPrevPage:', { currentPage, numPages, jumpToPage: !!jumpToPage });
     if (currentPage > 1 && jumpToPage) {
-      const newPage = currentPage - 1;
-      setCurrentPage(newPage); // Update state immediately
-      jumpToPage(newPage - 1); // jumpToPage is 0-indexed - immediate jump
-      saveCurrentPage(newPage); // Save immediately
+      const targetPage = currentPage - 1;
+      const zeroIndexedTarget = targetPage - 1;
+      console.log('Jumping to previous page:', targetPage, '(0-indexed:', zeroIndexedTarget, ')');
+      
+      // Only call jumpToPage, let onPageChange handle state updates
+      jumpToPage(zeroIndexedTarget);
     }
-  }, [currentPage, jumpToPage, saveCurrentPage]);
+  }, [currentPage, jumpToPage]);
 
   const goToNextPage = useCallback(() => {
+    console.log('goToNextPage:', { currentPage, numPages, jumpToPage: !!jumpToPage });
     if (currentPage < numPages && jumpToPage) {
-      const newPage = currentPage + 1;
-      setCurrentPage(newPage); // Update state immediately
-      jumpToPage(newPage - 1); // jumpToPage is 0-indexed - immediate jump
-      saveCurrentPage(newPage); // Save immediately
+      const targetPage = currentPage + 1;
+      const zeroIndexedTarget = targetPage - 1;
+      console.log('Jumping to next page:', targetPage, '(0-indexed:', zeroIndexedTarget, ')');
+      
+      // Only call jumpToPage, let onPageChange handle state updates
+      jumpToPage(zeroIndexedTarget);
     }
-  }, [currentPage, numPages, jumpToPage, saveCurrentPage]);
+  }, [currentPage, numPages, jumpToPage]);
+
+  // Function to jump to specific page instantly
+  const jumpToPageInstant = useCallback((pageNumber: number) => {
+    if (!jumpToPage || pageNumber < 1 || pageNumber > numPages) return;
+    
+    const zeroIndexedPage = pageNumber - 1;
+    console.log('Instant jump to page:', pageNumber, '(0-indexed:', zeroIndexedPage, ')');
+    
+    // Only call jumpToPage, let onPageChange handle state updates
+    jumpToPage(zeroIndexedPage);
+  }, [jumpToPage, numPages]);
 
   const toggleBookmarks = useCallback(() => {
     setShowBookmarks(!showBookmarks);
@@ -323,26 +522,26 @@ export const DocumentPreview: React.FC<DocumentPreviewProps> = ({
     onClose();
   }, [currentPage, saveCurrentPage, onClose]);
 
-  // Keyboard navigation disabled in scroll mode to prevent jumping
-  // useEffect(() => {
-  //   const handleKeyDown = (e: KeyboardEvent) => {
-  //     if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') {
-  //       e.preventDefault();
-  //       goToPrevPage();
-  //     } else if (e.key === 'ArrowRight' || e.key === 'ArrowDown') {
-  //       e.preventDefault();
-  //       goToNextPage();
-  //     }
-  //   };
+  // Keyboard navigation enabled for better UX
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') {
+        e.preventDefault();
+        goToPrevPage();
+      } else if (e.key === 'ArrowRight' || e.key === 'ArrowDown') {
+        e.preventDefault();
+        goToNextPage();
+      }
+    };
 
-  //   // Only add event listener when PDF is loaded and viewer is active
-  //   if (pdfUrl && !loading && !error) {
-  //     window.addEventListener('keydown', handleKeyDown);
-  //     return () => {
-  //       window.removeEventListener('keydown', handleKeyDown);
-  //     };
-  //   }
-  // }, [pdfUrl, loading, error, goToPrevPage, goToNextPage]);
+    // Only add event listener when PDF is loaded and viewer is active
+    if (pdfUrl && !loading && !error && numPages > 0) {
+      window.addEventListener('keydown', handleKeyDown);
+      return () => {
+        window.removeEventListener('keydown', handleKeyDown);
+      };
+    }
+  }, [pdfUrl, loading, error, numPages, goToPrevPage, goToNextPage]);
 
 
 
@@ -365,19 +564,29 @@ export const DocumentPreview: React.FC<DocumentPreviewProps> = ({
 
   // Handle page changes from initialPage prop (for source navigation)
   useEffect(() => {
-    if (initialPage && jumpToPage && numPages > 0 && initialPage !== prevInitialPageRef.current) {
-      const targetPage = Math.min(initialPage, numPages);
-      if (targetPage > 0) {
+    if (initialPage && jumpToPageInstant && numPages > 0 && initialPage !== prevInitialPageRef.current) {
+      const targetPage = Math.min(Math.max(1, initialPage), numPages);
+      if (targetPage > 0 && targetPage !== currentPage) {
         console.log(`Jumping to page ${targetPage} from source navigation (previous: ${prevInitialPageRef.current}, current: ${currentPage})`);
-        setCurrentPage(targetPage);
-        requestAnimationFrame(() => {
-          jumpToPage(targetPage - 1); // jumpToPage is 0-indexed
-        });
-        saveCurrentPage(targetPage);
+        
+        // Use instant navigation for external page requests
+        setTimeout(() => {
+          jumpToPageInstant(targetPage);
+        }, 100); // Minimal delay for component stability
         prevInitialPageRef.current = initialPage;
       }
     }
-  }, [initialPage, jumpToPage, numPages]);
+  }, [initialPage, numPages, currentPage, jumpToPageInstant]);
+
+  // Debug effect to track page restoration
+  useEffect(() => {
+    if (courseId && document.id) {
+      const savedPage = getSavedPage();
+      console.log(`DocumentPreview mounted for ${document.name}, saved page: ${savedPage}, initialPage: ${initialPage}`);
+    }
+  }, [courseId, document.id, document.name, initialPage, getSavedPage]);
+
+
 
   return (
     <div className="bg-white dark:bg-neutral-800 dark:border-neutral-700 rounded-xl border flex flex-col h-full max-h-full overflow-hidden">
@@ -387,7 +596,7 @@ export const DocumentPreview: React.FC<DocumentPreviewProps> = ({
           {document.name}
         </h3>
         <div className="flex items-center space-x-2">
-          {/* Optimized PDF Controls */}
+          {/* PDF Controls */}
           {isPDF && !loading && !error && numPages > 0 && (
             <>
               <div className="flex items-center space-x-2">
@@ -446,7 +655,7 @@ export const DocumentPreview: React.FC<DocumentPreviewProps> = ({
         </div>
       </div>
       
-      {/* Optimized PDF Viewer Container */}
+      {/* PDF Viewer Container */}
       <div 
         ref={containerRef}
         className="flex-1 overflow-hidden bg-gray-50 dark:bg-neutral-900 min-h-0 relative"
@@ -469,44 +678,102 @@ export const DocumentPreview: React.FC<DocumentPreviewProps> = ({
             <p className="text-sm text-gray-400 dark:text-gray-500">
               File: {document.name}
             </p>
+            <button 
+              onClick={() => {
+                setError(null);
+                setLoading(true);
+              }}
+              className="mt-4 px-4 py-2 bg-orange-600 text-white rounded hover:bg-orange-700 transition-colors"
+            >
+              Retry
+            </button>
           </div>
         ) : isPDF && pdfUrl ? (
           <div id={`document-preview-${document.id}`} className="h-full">
             <Worker workerUrl="https://unpkg.com/pdfjs-dist@3.11.174/build/pdf.worker.min.js">
-              <Viewer
-                fileUrl={pdfUrl}
-                plugins={[
-                  bookmarkPluginInstance, 
-                  zoomPluginInstance,
-                  highlightPluginInstance,
-                  scrollModePluginInstance
-                ]}
-                defaultScale={SpecialZoomLevel.PageFit}
-                onDocumentLoad={(e) => {
-                  setNumPages(e.doc.numPages);
-                  setPdfDoc(e.doc); // Store the PDF document for scaling calculations
-                  
-                  // Set vertical scroll mode for smooth scrolling
-                  setTimeout(() => {
-                    switchScrollMode(ScrollMode.Vertical);
-                  }, 200);
-                  
-                  // Use initialPage prop if provided, otherwise restore saved page or start at page 1
-                  const savedPage = getSavedPage();
-                  const targetPage = initialPage || savedPage;
-                  const finalPage = Math.min(targetPage, e.doc.numPages); // Ensure page exists
-                  setCurrentPage(finalPage);
-                  
-                  console.log(`PDF loaded: ${e.doc.numPages} pages, starting at page: ${initialPage}`);
+              {/* Fixed height container to prevent scrollbar changes */}
+              <div 
+                className="h-full overflow-auto"
+                style={{
+                  position: 'relative',
                 }}
-                onPageChange={(e) => {
-                  const newPage = e.currentPage + 1; // Convert from 0-indexed
-                  setCurrentPage(newPage);
-                  saveCurrentPage(newPage); // Immediate save for faster navigation
-                  onPageChange?.(newPage); // Notify parent component
-                  console.log(`Current page: ${newPage}`);
-                }}
-              />
+              >
+                {/* Virtual spacer to maintain consistent scrollbar */}
+                {totalHeight > 0 && (
+                  <div 
+                    style={{ 
+                      height: `${totalHeight}px`,
+                      position: 'absolute',
+                      top: 0,
+                      left: 0,
+                      right: 0,
+                      pointerEvents: 'none',
+                      zIndex: -1
+                    }}
+                  />
+                )}
+                
+                {/* PDF Viewer */}
+                <div ref={viewerRef} className="relative z-10">
+                  <Viewer
+                  fileUrl={pdfUrl}
+                  plugins={[
+                    pageNavigationPluginInstance,
+                    bookmarkPluginInstance, 
+                    zoomPluginInstance,
+                    highlightPluginInstance,
+                    scrollModePluginInstance
+                  ]}
+                  defaultScale={SpecialZoomLevel.PageFit}
+                  scrollMode={ScrollMode.Vertical}
+                  enableSmoothScroll={false}
+                  initialPage={0}
+                  setRenderRange={setRenderRange}
+                  renderLoader={(percentages: number) => (
+                    <div className="flex items-center justify-center h-full">
+                      <div className="text-center">
+                        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-orange-600 mx-auto mb-4"></div>
+                        <p className="text-gray-500 dark:text-gray-400">
+                          Loading document... {Math.round(percentages)}%
+                        </p>
+                      </div>
+                    </div>
+                  )}
+                  onDocumentLoad={(e) => {
+                    console.log('Document loaded successfully!', e.doc.numPages, 'pages');
+                    setNumPages(e.doc.numPages);
+                    setPdfDoc(e.doc);
+                    
+                    // Calculate total height immediately to prevent scrollbar changes
+                    calculateTotalHeight(e.doc);
+                    
+                    // Navigate to saved/initial page with reduced delay
+                    setTimeout(() => {
+                      const savedPage = getSavedPage();
+                      const targetPage = initialPage || savedPage;
+                      const finalPage = Math.min(Math.max(1, targetPage), e.doc.numPages);
+                      
+                      console.log('Navigating to initial page:', { savedPage, initialPage, finalPage });
+                      
+                      if (finalPage > 1) {
+                        jumpToPageInstant(finalPage);
+                      }
+                    }, 500); // Reduced delay for faster navigation
+                  }}
+                  onPageChange={(e) => {
+                    console.log('Page changed to:', e.currentPage + 1);
+                    const newPage = e.currentPage + 1;
+                    setCurrentPage(newPage);
+                    
+                    if (courseId && document.id) {
+                      localStorage.setItem(`pdf-page-${courseId}-${document.id}`, newPage.toString());
+                    }
+                    
+                    onPageChange?.(newPage);
+                  }}
+                />
+                </div>
+              </div>
             </Worker>
           </div>
         ) : (
@@ -523,4 +790,4 @@ export const DocumentPreview: React.FC<DocumentPreviewProps> = ({
       </div>
     </div>
   );
-}; 
+};

@@ -2,7 +2,6 @@ import React, { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Header } from '../components/Layout/Header';
-import { PageLoader } from '../components/Layout/PageLoader';
 import { 
   FileManager, 
   DocumentPreview, 
@@ -16,11 +15,15 @@ import { useChatManager } from '../lib/hooks/useChatManager';
 import { useResizeManager } from '../lib/hooks/useResizeManager';
 import { courseApi, slideApi } from '../lib/api/api';
 
+// Memoized components to prevent unnecessary re-renders
+const MemoizedChatInterface = React.memo(ChatInterface);
+const MemoizedFileManager = React.memo(FileManager);
+const MemoizedDocumentPreview = React.memo(DocumentPreview);
+
 export const Class: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const queryClient = useQueryClient();
   const [isFileManagerCollapsed, setIsFileManagerCollapsed] = useState(false);
-  const [searchQuery, setSearchQuery] = useState('');
 
   // Fetch course data with better caching while ensuring data loads
   const { data: course, isLoading: courseLoading, error: courseError } = useQuery({
@@ -45,21 +48,16 @@ export const Class: React.FC = () => {
     refetchOnWindowFocus: false,
   });
 
-  // Filter slides based on search query (local filtering for instant results)
-  const filteredSlides = allSlides.filter(slide =>
-    slide.originalFileName.toLowerCase().includes(searchQuery.toLowerCase())
-  );
-
   // Custom hooks for functionality
-  const documentManager = useDocumentManager(id, filteredSlides);
-  const chatManager = useChatManager(id, documentManager.selectedDocument, documentManager.currentPage);
+  const documentManager = useDocumentManager(id, allSlides);
+  const chatManager = useChatManager(id, documentManager.selectedDocument);
   const resizeManager = useResizeManager();
 
   // Handle opening file from source citation
-  const handleOpenInFile = (s3FileName: string, pageStart: number, rawText: string) => {
+  const handleOpenInFile = (s3FileName: string, pageStart: number) => {
     console.log(`Opening file: ${s3FileName}, page: ${pageStart}`);
     // Extract slide ID from s3_file_name (format: courses/{courseId}/slides/{slideId}.pdf)
-    const slideIdMatch = s3FileName.match(/slides\/([^\/]+)\.pdf$/);
+    const slideIdMatch = s3FileName.match(/slides\/([^/]+)\.pdf$/);
     if (slideIdMatch) {
       const slideId = slideIdMatch[1];
       const slide = allSlides.find(s => s.id === slideId);
@@ -93,7 +91,6 @@ export const Class: React.FC = () => {
       console.log(`Invalid s3 file name format: ${s3FileName}`);
     }
   };
-
 
 
   // Show file management only when no document is previewed
@@ -142,8 +139,8 @@ export const Class: React.FC = () => {
   return (
     <div className={`h-screen bg-blue-50 dark:bg-neutral-900 flex flex-col ${resizeManager.isResizing ? 'cursor-col-resize' : ''}`}>
         <Header 
-          courseName={(displayCourse as any)?.name || 'Loading...'}
-          courseCode={(displayCourse as any)?.code || ''}
+          courseName={(displayCourse as { name?: string })?.name || 'Loading...'}
+          courseCode={(displayCourse as { code?: string })?.code || ''}
           lightBlueTheme={true}
         />
 
@@ -151,7 +148,7 @@ export const Class: React.FC = () => {
         <div className="flex-1 flex pt-16 main-content-container min-h-0">
         {/* File Management Block */}
         {showFileManagement && (
-          <FileManager
+          <MemoizedFileManager
             documents={documentManager.documents}
             isCollapsed={isFileManagerCollapsed}
             onToggleCollapse={() => setIsFileManagerCollapsed(!isFileManagerCollapsed)}
@@ -159,8 +156,6 @@ export const Class: React.FC = () => {
             onPreviewDocument={documentManager.handlePreviewDocument}
             onDeleteConfirmation={documentManager.handleDeleteConfirmation}
             onEditDocument={documentManager.handleEditDocument}
-            searchQuery={searchQuery}
-            onSearchChange={setSearchQuery}
           />
         )}
 
@@ -168,7 +163,7 @@ export const Class: React.FC = () => {
         {documentManager.selectedDocument && (
           <>
             <div className="p-2 h-full" style={{ width: `${resizeManager.previewWidth}%` }}>
-              <DocumentPreview
+              <MemoizedDocumentPreview
                 document={documentManager.selectedDocument}
                 onClose={() => documentManager.setSelectedDocument(null)}
                 onAddToChat={(text) => {
@@ -193,7 +188,7 @@ export const Class: React.FC = () => {
 
         {/* Chat Interface Block */}
         <div className="flex-1 p-2 h-full" style={{ width: documentManager.selectedDocument ? `${100 - resizeManager.previewWidth}%` : '100%' }}>
-          <ChatInterface
+          <MemoizedChatInterface
             messages={chatManager.messages}
             isAiLoading={chatManager.isAiLoading}
             inputMessage={chatManager.inputMessage}
@@ -202,6 +197,7 @@ export const Class: React.FC = () => {
             onClearChat={chatManager.handleClearChat}
             streamingMessageIds={chatManager.streamingMessageIds}
             onOpenInFile={handleOpenInFile}
+            slides={allSlides}
           />
         </div>
       </div>
