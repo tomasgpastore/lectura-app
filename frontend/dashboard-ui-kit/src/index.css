@@ -295,4 +295,60 @@ p + .katex-display {
   color: #f9fafb !important;
 }
 
+/* Custom scrollbar styles for both light and dark modes */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: #d1d5db #ffffff; /* Light mode: thumb #d1d5db, track #ffffff */
+}
+
+.dark * {
+  scrollbar-color: #6b7280 #262626; /* Dark mode: thumb #6b7280, track #262626 */
+}
+
+/* Webkit scrollbar styles */
+*::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+*::-webkit-scrollbar-track {
+  background: #ffffff; /* Light mode track - matches bg-white */
+  border-radius: 4px;
+}
+
+*::-webkit-scrollbar-thumb {
+  background: #d1d5db; /* Light mode thumb - matches bg-gray-300 */
+  border-radius: 4px;
+  border: 1px solid #ffffff; /* Blend with track */
+}
+
+*::-webkit-scrollbar-thumb:hover {
+  background: #9ca3af; /* Light mode hover - matches bg-gray-400 */
+}
+
+/* Dark mode webkit scrollbar */
+.dark *::-webkit-scrollbar-track {
+  background: #262626; /* Dark mode track - matches bg-neutral-800 */
+  border-radius: 4px;
+}
+
+.dark *::-webkit-scrollbar-thumb {
+  background: #6b7280; /* Dark mode thumb - matches bg-gray-500 */
+  border-radius: 4px;
+  border: 1px solid #262626; /* Blend with track */
+}
+
+.dark *::-webkit-scrollbar-thumb:hover {
+  background: #9ca3af; /* Dark mode hover - matches bg-gray-400 */
+}
+
+/* Scrollbar corner */
+*::-webkit-scrollbar-corner {
+  background: #ffffff; /* Light mode */
+}
+
+.dark *::-webkit-scrollbar-corner {
+  background: #262626; /* Dark mode */
+}
+
  

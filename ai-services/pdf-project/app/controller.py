@@ -3,16 +3,17 @@ from pydantic import BaseModel
 from typing import Optional
 import logging
 import time
+from contextlib import asynccontextmanager
 from app.config import validate_environment
-from app.inbound_pipeline import process_pdf_pipeline, cleanup_inbound_connections
-from app.management_pipeline import delete_vectors_by_metadata, cleanup_management_connections
-from app.outbound_pipeline_nostream import (
+from app.pipeline.inbound.inbound_pipeline import process_pdf_pipeline, cleanup_inbound_connections
+from app.pipeline.manager.management_pipeline import delete_vectors_by_metadata, cleanup_management_connections
+from app.pipeline.out.outbound_pipeline import (
     OutboundRequest, 
     ChatResponseDTO,
     process_outbound_pipeline_optimized,
     cleanup_connections
 )
-from app.pre_outbound import (
+from app.pipeline.out.pre_outbound import (
     QueryAnalysisRequest,
     process_pre_outbound_pipeline,
     cleanup_pre_outbound_connections
@@ -21,21 +22,26 @@ from app.pre_outbound import (
 # Configure logging
 logger = logging.getLogger(__name__)
 
-app = FastAPI(
-    title="PDF Processing Pipeline API",
-    description="Microservice API for processing PDF files from S3 and uploading chunks to Pinecone",
-    version="2.0.0"
-)
-
-@app.on_event("shutdown")
-async def shutdown_event():
-    """Clean up resources on application shutdown"""
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Lifespan event handler for startup and shutdown"""
+    # Startup
+    logger.info("Application starting up...")
+    yield
+    # Shutdown
     logger.info("Application shutting down, cleaning up resources...")
     cleanup_connections()
     cleanup_inbound_connections()
     cleanup_management_connections()
     cleanup_pre_outbound_connections()
     logger.info("Resource cleanup completed")
+
+app = FastAPI(
+    title="PDF Processing Pipeline API",
+    description="Microservice API for processing PDF files from S3 and uploading chunks to Pinecone",
+    version="2.0.0",
+    lifespan=lifespan
+)
 
 class InboundRequest(BaseModel):
     courseId: str

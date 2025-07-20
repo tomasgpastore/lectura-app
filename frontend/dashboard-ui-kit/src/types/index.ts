@@ -26,16 +26,16 @@ export interface Document {
 export interface ChatMessage {
   role: string;
   content: string;
-  timestamp: number;
+  timestamp: Date;
 }
 
 export interface ChatSource {
-  source_id: number;
-  slide_id: string;
-  s3_file_name: string;
-  page_start: number;
-  page_end: number;
-  raw_text: string;
+  id: string;
+  slide: string;
+  s3file: string;
+  start: string;
+  end: string;
+  text: string;
   preview_text?: string;
 }
 
@@ -46,7 +46,7 @@ export interface ChatMessageUI {
   timestamp: Date;
   role: string;
   sources?: ChatSource[];
-  sourceMapping?: Record<number, ChatSource>;
+  sourceMapping?: Record<string, ChatSource>;
 } 
 
 export interface Course {

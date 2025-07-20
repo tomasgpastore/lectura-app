@@ -2,19 +2,17 @@ import { ChatMessage } from '../../types';
 
 export const createUserMessage = (content: string): ChatMessage => {
   return {
-    id: Date.now().toString(),
+    role: 'user',
     content,
-    isUser: true,
     timestamp: new Date()
   };
 };
 
 export const createAiMessage = (content: string): ChatMessage => {
   return {
-    id: (Date.now() + 1).toString(),
+    role: 'assistant',
     content,
-    isUser: false,
-    timestamp: new Date()
+    timestamp: new Date(),
   };
 };
 

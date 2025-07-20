@@ -18,6 +18,8 @@ import java.net.HttpURLConnection
 import java.util.concurrent.CompletableFuture
 import com.fasterxml.jackson.databind.ObjectMapper
 import java.net.URI
+import java.time.LocalDateTime
+import java.util.Date
 
 data class SlideProcessingRequest(
     val courseId: String,
@@ -234,14 +236,14 @@ class AiChatService(
             val userMessage = ChatMessage(
                 role = "user",
                 content = userPrompt,
-                timestamp = System.currentTimeMillis()
+                timestamp = LocalDateTime.now()
             )
 
             // Save AI response
             val assistantMessage = ChatMessage(
                 role = "assistant",
                 content = aiResponse,
-                timestamp = System.currentTimeMillis()
+                timestamp = LocalDateTime.now()
             )
             chatService.addMessage(userId, courseId, userMessage, assistantMessage)
             

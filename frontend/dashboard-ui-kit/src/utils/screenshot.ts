@@ -128,9 +128,9 @@ export const captureDocumentSnapshot = async (elementId: string, highQuality: bo
     const maxHeight = 2048;
     
     // Calculate actual dimensions
-    let finalWidth = targetCanvas.width * scale;
-    let finalHeight = targetCanvas.height * scale;
-    
+    let finalWidth = targetCanvas["width"] * scale;  
+    let finalHeight = targetCanvas["height"] * scale;
+
     // Constrain to maximum dimensions while maintaining aspect ratio
     if (finalWidth > maxWidth || finalHeight > maxHeight) {
       const aspectRatio = finalWidth / finalHeight;
@@ -182,23 +182,6 @@ export const captureDocumentSnapshot = async (elementId: string, highQuality: bo
     console.error('❌ Failed to capture screenshot:', error);
     return null;
   }
-};
-
-/**
- * Creates SVG representation of an element (simplified)
- */
-const createSVGFromElement = (element: HTMLElement): string => {
-  const rect = element.getBoundingClientRect();
-  return `
-    <svg xmlns="http://www.w3.org/2000/svg" width="${rect.width}" height="${rect.height}">
-      <foreignObject width="100%" height="100%">
-        <div xmlns="http://www.w3.org/1999/xhtml" style="font-size: 12px; padding: 20px;">
-          Document preview screenshot not available with current implementation.
-          This is a placeholder for the document content.
-        </div>
-      </foreignObject>
-    </svg>
-  `;
 };
 
 /**

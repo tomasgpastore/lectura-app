@@ -3,6 +3,81 @@ import { Bot, Copy, Menu, Trash2, Check, ArrowUp } from 'lucide-react';
 import { ChatMessageUI } from '../../types';
 import { MarkdownRenderer } from './MarkdownRenderer';
 
+// Memoized message component to prevent unnecessary re-renders
+const MessageComponent = React.memo(({ 
+  message, 
+  isStreaming, 
+  copiedMessageId, 
+  onCopyMessage, 
+  onOpenInFile, 
+  slides 
+}: {
+  message: ChatMessageUI;
+  isStreaming: boolean;
+  copiedMessageId: string | null;
+  onCopyMessage: (content: string, messageId: string) => void;
+  onOpenInFile?: (s3FileName: string, pageStart: number, rawText: string) => void;
+  slides: Array<{ id: string; originalFileName: string }>;
+}) => {
+  return (
+    <div
+      data-message-id={message.id}
+      className="flex items-start justify-center"
+    >
+      <div className={`${
+        message.isUser 
+          ? 'w-full flex justify-end max-w-4xl' 
+          : 'text-left w-full max-w-4xl'
+      }`}>
+        {message.isUser ? (
+          // User message - no background, borders, picture, or time
+          <div className="inline-block px-4 py-3 rounded-2xl bg-orange-600 text-white text-left max-w-md">
+            <div className="prose prose-base prose-invert max-w-none">
+              <p className="text-base leading-relaxed m-0 text-white">{message.content}</p>
+            </div>
+          </div>
+        ) : (
+          // Assistant message - no background or borders, just content with copy button
+          <div className="space-y-2 mt-6">
+            {/* Show content if available */}
+            {message.content && (
+              <div className="text-gray-900 dark:text-white">
+                <div className="text-base leading-relaxed">
+                  <MarkdownRenderer 
+                    content={message.content}
+                    sources={message.sources}
+                    sourceMapping={message.sourceMapping}
+                    isStreaming={isStreaming}
+                    onOpenInFile={onOpenInFile}
+                    slides={slides}
+                  />
+                </div>
+              </div>
+            )}
+            
+            {/* Copy button - only show when streaming is complete */}
+            {!isStreaming && message.content && (
+              <div className="flex items-center">
+                <button
+                  onClick={() => onCopyMessage(message.content, message.id)}
+                  className="p-1.5 text-gray-400 hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-300 rounded-lg hover:bg-gray-100 dark:hover:bg-neutral-700 transition-colors"
+                  title="Copy message"
+                >
+                  {copiedMessageId === message.id ? (
+                    <Check className="w-4 h-4 text-green-500" />
+                  ) : (
+                    <Copy className="w-4 h-4" />
+                  )}
+                </button>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+});
+
 interface ChatInterfaceProps {
   messages: ChatMessageUI[];
   isAiLoading: boolean;
@@ -12,6 +87,7 @@ interface ChatInterfaceProps {
   onClearChat: () => void;
   streamingMessageIds: Set<string>;
   onOpenInFile?: (s3FileName: string, pageStart: number, rawText: string) => void;
+  slides?: Array<{ id: string; originalFileName: string }>;
 }
 
 export const ChatInterface: React.FC<ChatInterfaceProps> = ({
@@ -23,52 +99,114 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
   onClearChat,
   streamingMessageIds,
   onOpenInFile,
+  slides = [],
 }) => {
   const [showMenu, setShowMenu] = useState(false);
   const [copiedMessageId, setCopiedMessageId] = useState<string | null>(null);
-  const [isUserAtBottom, setIsUserAtBottom] = useState(true);
+  const [sentinelHeight, setSentinelHeight] = useState(650); // Default height
   const menuRef = useRef<HTMLDivElement>(null);
-  const messagesEndRef = useRef<HTMLDivElement>(null);
   const messagesContainerRef = useRef<HTMLDivElement>(null);
+  const bottomSpacerRef = useRef<HTMLDivElement>(null);
 
-  // Check if user is at bottom of chat
-  const checkIfUserAtBottom = useCallback(() => {
-    if (!messagesContainerRef.current) return;
+  // Get last 5 Q&A pairs for rendering
+  const getLastQAPairs = (allMessages: ChatMessageUI[], maxPairs: number = 5) => {
+    const pairs: ChatMessageUI[] = [];
+    let pairCount = 0;
     
-    const { scrollTop, scrollHeight, clientHeight } = messagesContainerRef.current;
-    const isAtBottom = scrollHeight - scrollTop - clientHeight < 50; // 50px threshold
-    setIsUserAtBottom(isAtBottom);
+    // Process messages from newest to oldest to find complete Q&A pairs
+    for (let i = allMessages.length - 1; i >= 0 && pairCount < maxPairs; i--) {
+      const message = allMessages[i];
+      
+      if (!message.isUser) {
+        // AI message - look for the user message that comes before it
+        for (let j = i - 1; j >= 0; j--) {
+          if (allMessages[j].isUser) {
+            // Found a Q&A pair, add both messages
+            pairs.unshift(allMessages[j], message);
+            pairCount++;
+            i = j; // Skip the user message we just processed
+            break;
+          }
+        }
+      }
+    }
+    
+    // If the last message is a user message without an AI response, add it
+    if (allMessages.length > 0 && allMessages[allMessages.length - 1].isUser) {
+      const lastUserMessage = allMessages[allMessages.length - 1];
+      // Check if it's not already in pairs
+      if (!pairs.some(m => m.id === lastUserMessage.id)) {
+        pairs.push(lastUserMessage);
+      }
+    }
+    
+    return pairs;
+  };
+  
+  const visibleMessages = getLastQAPairs(messages, 5);
+
+  // Handle scroll events - simplified without bottom tracking
+  const handleScroll = useCallback(() => {
+    // Could add scroll-based logic here if needed
   }, []);
 
-  // Handle scroll events
-  const handleScroll = useCallback(() => {
-    checkIfUserAtBottom();
-  }, [checkIfUserAtBottom]);
-
-  // Auto-scroll to bottom when messages change, but only if user was at bottom
+  // Auto-scroll to bottom when new messages arrive
   useEffect(() => {
-    if (isUserAtBottom && messagesContainerRef.current) {
-      messagesContainerRef.current.scrollTo({
-        top: messagesContainerRef.current.scrollHeight,
-        behavior: 'smooth'
-      });
+    if (messages.length === 0) return;
+    
+    const lastMessage = messages[messages.length - 1];
+    
+    // Only scroll when user sends a message
+    if (lastMessage.isUser) {
+      // Set initial sentinel height to 800px so last message is clearly visible
+      setSentinelHeight(650);
+      
+      // Use setTimeout to ensure DOM is updated before scrolling
+      setTimeout(() => {
+        const container = messagesContainerRef.current;
+        if (container) {
+          // Scroll to the very bottom with the larger sentinel
+          container.scrollTo({
+            top: container.scrollHeight,
+            behavior: "smooth"
+          });
+        }
+      }, 100);
     }
-  }, [messages, isUserAtBottom]);
+  }, [messages]);
 
-  // Auto-scroll during streaming if user is at bottom
+  // Adjust sentinel height when AI response is complete
   useEffect(() => {
-    if (streamingMessageIds.size > 0 && isUserAtBottom && messagesContainerRef.current) {
-      messagesContainerRef.current.scrollTo({
-        top: messagesContainerRef.current.scrollHeight,
-        behavior: 'smooth'
-      });
+    if (messages.length < 2) return;
+    
+    const lastMessage = messages[messages.length - 1];
+    const isAiResponseComplete = !lastMessage.isUser && !streamingMessageIds.has(lastMessage.id);
+    
+    if (isAiResponseComplete) {
+      // Use longer timeout to ensure DOM is fully rendered
+      setTimeout(() => {
+        const aiMessageElement = document.querySelector(`[data-message-id="${lastMessage.id}"]`);
+        
+        if (aiMessageElement) {
+          const aiMessageHeight = aiMessageElement.getBoundingClientRect().height;
+          
+          // If AI response is larger than 650px, set sentinel to 200px
+          if (aiMessageHeight > 650) {
+            setSentinelHeight(200);
+          } else {
+            // If AI response is smaller than 650px, set sentinel to 650px - response_size
+            // This ensures total space (response + sentinel) = 650px
+            setSentinelHeight(650 + 50 - aiMessageHeight);
+          }
+        }
+      }, 300);
     }
-  }, [messages, streamingMessageIds, isUserAtBottom]);
+  }, [messages, streamingMessageIds]);
 
-  // Initial check for bottom position
+  // Initial setup
   useEffect(() => {
-    checkIfUserAtBottom();
-  }, [checkIfUserAtBottom]);
+    // Any initial setup logic can go here
+  }, []);
 
   // Close menu when clicking outside
   useEffect(() => {
@@ -98,7 +236,7 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
   };
 
   return (
-    <div className="bg-white dark:bg-neutral-800 dark:border-neutral-700 rounded-xl border flex flex-col h-full">
+    <div className="bg-white dark:bg-neutral-800 dark:border-neutral-700 rounded-xl border flex flex-col h-full max-h-[calc(100vh-2rem)] overflow-hidden">
       {/* Header with Menu */}
       <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-neutral-700">
         <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Chat</h3>
@@ -128,7 +266,7 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
       <div 
         ref={messagesContainerRef}
         onScroll={handleScroll}
-        className="flex-1 overflow-y-auto p-6 space-y-6"
+        className="flex-1 overflow-y-auto py-6 min-h-0"
       >
         {messages.length === 0 ? (
           <div className="text-center py-12">
@@ -143,122 +281,103 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
             </p>
           </div>
         ) : (
-          messages.map((message) => (
+          <>
+            {/* Simple message list - last 5 messages only */}
+            <div className="space-y-0">
+              {visibleMessages.map((message) => (
+                <div
+                  key={message.id}
+                  data-message-id={message.id}
+                  className="max-w-4xl mx-auto px-12 py-4"
+                >
+                  <MessageComponent
+                    message={message}
+                    isStreaming={streamingMessageIds.has(message.id)}
+                    copiedMessageId={copiedMessageId}
+                    onCopyMessage={handleCopyMessage}
+                    onOpenInFile={onOpenInFile}
+                    slides={slides}
+                  />
+                </div>
+              ))}
+            </div>
+            
+            {/* Loading dots - show when AI is loading and no streaming messages */}
+            {isAiLoading && messages.length > 0 && messages[messages.length - 1]?.isUser && (
+              <div className="max-w-4xl mx-auto px-12 py-4">
+                <div className="flex items-start justify-start">
+                  <div className="text-gray-900 dark:text-white w-full">
+                    <div className="flex space-x-1 items-center">
+                      <div className="w-2 h-2 bg-orange-500 dark:bg-orange-400 rounded-full animate-bounce"></div>
+                      <div className="w-2 h-2 bg-orange-500 dark:bg-orange-400 rounded-full animate-bounce" style={{ animationDelay: '0.1s' }}></div>
+                      <div className="w-2 h-2 bg-orange-500 dark:bg-orange-400 rounded-full animate-bounce" style={{ animationDelay: '0.2s' }}></div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+            
+            {/* ChatGPT-style bottom sentinel for over-scroll breathing room */}
             <div
-              key={message.id}
-              className={`flex items-start ${
-                message.isUser ? 'justify-end' : 'justify-start'
-              }`}
-            >
-              <div className={`max-w-3xl ${message.isUser ? 'text-right' : 'text-left'}`}>
-                {message.isUser ? (
-                  // User message - no background, borders, picture, or time
-                  <div className="inline-block px-4 py-3 rounded-2xl bg-orange-600 text-white text-left">
-                    <p className="text-sm leading-relaxed">{message.content}</p>
-                  </div>
-                ) : (
-                  // Assistant message - no background or borders, just content with copy button
-                  <div className="space-y-2">
-                    {/* Show content if available */}
-                    {message.content && (
-                      <div className="text-gray-900 dark:text-white">
-                        <div className="text-sm leading-relaxed">
-                          <MarkdownRenderer 
-                            content={message.content}
-                            sources={message.sources}
-                            sourceMapping={message.sourceMapping}
-                            isStreaming={streamingMessageIds.has(message.id)}
-                            onOpenInFile={onOpenInFile}
-                          />
-                        </div>
-                      </div>
-                    )}
-                    
-                    {/* Copy button - only show when streaming is complete */}
-                    {!streamingMessageIds.has(message.id) && message.content && (
-                      <div className="flex items-center">
-                        <button
-                          onClick={() => handleCopyMessage(message.content, message.id)}
-                          className="p-1.5 text-gray-400 hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-300 rounded-lg hover:bg-gray-100 dark:hover:bg-neutral-700 transition-colors"
-                          title="Copy message"
-                        >
-                          {copiedMessageId === message.id ? (
-                            <Check className="w-4 h-4 text-green-500" />
-                          ) : (
-                            <Copy className="w-4 h-4" />
-                          )}
-                        </button>
-                      </div>
-                    )}
-                  </div>
-                )}
-              </div>
-            </div>
-          ))
+              ref={bottomSpacerRef}
+              aria-hidden
+              className="pointer-events-none"
+              style={{ height: `${sentinelHeight}px` }}
+            />
+          </>
         )}
-        
-        {/* Loading dots - show when AI is loading and no streaming messages */}
-        {isAiLoading && messages.length > 0 && messages[messages.length - 1]?.isUser && (
-          <div className="flex items-start">
-            <div className="text-gray-900 dark:text-white">
-              <div className="flex space-x-1 items-center">
-                <div className="w-2 h-2 bg-orange-500 dark:bg-orange-400 rounded-full animate-bounce"></div>
-                <div className="w-2 h-2 bg-orange-500 dark:bg-orange-400 rounded-full animate-bounce" style={{ animationDelay: '0.1s' }}></div>
-                <div className="w-2 h-2 bg-orange-500 dark:bg-orange-400 rounded-full animate-bounce" style={{ animationDelay: '0.2s' }}></div>
-              </div>
-            </div>
-          </div>
-        )}
-        
-        {/* Auto-scroll target */}
-        <div ref={messagesEndRef} />
       </div>
 
-      {/* Chat Input */}
-      <div className="p-6 bg-transparent">
-        <form onSubmit={onSubmit} className="flex space-x-4">
-          <div className="flex-1 relative max-w-2xl mx-auto">
-            <textarea
-              value={inputMessage}
-              onChange={(e) => onInputChange(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter' && !e.shiftKey) {
-                  e.preventDefault();
-                  onSubmit(e as any);
-                }
-              }}
-              placeholder="Ask a question about your documents..."
-              className="w-full px-4 py-3 pr-12 border border-gray-300 dark:border-neutral-600 rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent bg-white dark:bg-neutral-700 text-gray-900 dark:text-white transition-colors duration-200 resize-none min-h-[80px] max-h-[200px] overflow-y-auto"
-              rows={4}
-              style={{
-                height: 'auto',
-                minHeight: '80px',
-                maxHeight: '200px'
-              }}
-              onInput={(e) => {
-                const target = e.target as HTMLTextAreaElement;
-                target.style.height = 'auto';
-                const scrollHeight = target.scrollHeight;
-                const maxHeight = 200; // 9 lines approximately
-                if (scrollHeight > maxHeight) {
-                  target.style.height = `${maxHeight}px`;
-                  target.style.overflowY = 'auto';
-                } else {
-                  target.style.height = `${Math.max(80, scrollHeight)}px`;
-                  target.style.overflowY = 'hidden';
-                }
-              }}
-              disabled={isAiLoading}
-            />
-            <button
-              type="submit"
-              disabled={!inputMessage.trim() || isAiLoading}
-              className="absolute right-3 bottom-4 p-2 bg-orange-600 hover:bg-orange-700 disabled:bg-gray-400 text-white rounded-lg transition-colors duration-200 disabled:cursor-not-allowed"
-            >
-              <ArrowUp className="w-4 h-4" />
-            </button>
-          </div>
-        </form>
+      {/* ChatGPT-style input isolation - positioned outside scroll container */}
+      <div className="pb-4 bg-transparent -mt-16 overflow-y-scroll relative z-50">
+        <div className="max-w-4xl mx-auto px-12 py-1">
+          <form onSubmit={onSubmit} className="w-full bg-transparent">
+            <div className="relative">
+              {/* Outer container with rounded corners and focus ring */}
+              <div className="bg-white dark:bg-neutral-700 border border-gray-300 dark:border-neutral-600 rounded-xl focus-within:ring-2 focus-within:ring-orange-500 focus-within:border-orange-500 transition-all duration-200">
+                <textarea
+                  value={inputMessage}
+                  onChange={(e) => onInputChange(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' && !e.shiftKey) {
+                      e.preventDefault();
+                      onSubmit(e as React.FormEvent);
+                    }
+                  }}
+                  placeholder="Ask a question about your documents..."
+                  className="w-full px-4 py-3 pr-12 border-0 focus:outline-none bg-transparent text-gray-900 dark:text-white resize-none min-h-[80px] max-h-[200px] text-base placeholder:text-base"
+                  rows={4}
+                  style={{
+                    height: 'auto',
+                    minHeight: '80px',
+                    maxHeight: '200px'
+                  }}
+                  onInput={(e) => {
+                    const target = e.target as HTMLTextAreaElement;
+                    target.style.height = 'auto';
+                    const scrollHeight = target.scrollHeight;
+                    const maxHeight = 200;
+                    if (scrollHeight > maxHeight) {
+                      target.style.height = `${maxHeight}px`;
+                      target.style.overflowY = 'auto';
+                    } else {
+                      target.style.height = `${Math.max(80, scrollHeight)}px`;
+                      target.style.overflowY = 'hidden';
+                    }
+                  }}
+                  disabled={isAiLoading}
+                />
+                <button
+                  type="submit"
+                  disabled={!inputMessage.trim() || isAiLoading}
+                  className="absolute right-3 bottom-4 p-2 bg-orange-600 hover:bg-orange-700 disabled:bg-gray-400 text-white rounded-lg transition-colors duration-200 disabled:cursor-not-allowed"
+                >
+                  <ArrowUp className="w-4 h-4" />
+                </button>
+              </div>
+            </div>
+          </form>
+        </div>
       </div>
     </div>
   );

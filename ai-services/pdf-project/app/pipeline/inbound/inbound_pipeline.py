@@ -1,9 +1,10 @@
 from llama_index.readers.file import PyMuPDFReader
 from llama_index.core.schema import Document
+from app.chunking.semantic_chunking import SemanticChunker
+from app.chunking.structural_chunking import StructuralChunker
 from app.config import get_env_var
-from app.local_embedding import get_text_embedding, get_text_embedding_batch, cleanup_local_embedding_model
-from app.chroma_client import get_chroma_collection, safe_chroma_upsert, cleanup_chroma_client
-import tiktoken
+from embedding.local_embedding import get_text_embedding, get_text_embedding_batch, cleanup_local_embedding_model, get_local_embedding_model
+from database.chroma_client import get_chroma_collection, safe_chroma_upsert, cleanup_chroma_client
 import logging
 import time
 import fitz
@@ -12,9 +13,7 @@ import asyncio
 from typing import Optional, List, Any, Dict
 from io import BytesIO
 from concurrent.futures import ThreadPoolExecutor
-import math
 import re
-import mmap
 from functools import lru_cache
 
 # Configure logging for microservice
@@ -24,12 +23,17 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+# Chunking strategy configuration - change this to switch between chunking methods
+CHUNKING_STRATEGY = "semantic"  # Options: "semantic", "structural"
+
 # Global connections - initialized once and reused
 _chroma_collection = None
 _s3_client = None
 _thread_pool: Optional[ThreadPoolExecutor] = None
 _tokenizer = None
 _embedding_model_warmed = False
+_semantic_chunker = None
+_structural_chunker = None
 
 # Compiled regex patterns for faster chunking
 _sentence_pattern = re.compile(r'[.!?]\s+')
@@ -60,12 +64,66 @@ def get_s3_client():
     return _s3_client
 
 def get_tokenizer():
-    """Get or create tokenizer (singleton)"""
+    """Get or create tokenizer (singleton) - using simple estimation"""
     global _tokenizer
     if _tokenizer is None:
-        _tokenizer = tiktoken.encoding_for_model("gpt-4")
-        logger.info("Tokenizer initialized (inbound)")
+        # Use simple token estimation instead of actual tokenizer
+        _tokenizer = "estimator"
+        logger.info("Simple token estimator initialized (inbound)")
     return _tokenizer
+
+def get_semantic_chunker():
+    """Get or create semantic chunker (singleton)"""
+    global _semantic_chunker
+    if _semantic_chunker is None:
+        # Create custom semantic chunker using our existing embedding model
+        _semantic_chunker = SemanticChunker(
+            buffer_size=3,  # Number of sentences to group together
+            breakpoint_percentile_threshold=90,  # Threshold for semantic breaks
+            chunk_size=300,  # Maximum chunk size in tokens
+        )
+        logger.info("✅ Semantic chunker initialized (inbound)")
+    return _semantic_chunker
+
+def get_structural_chunker():
+    """Get or create structural chunker (singleton)"""
+    global _structural_chunker
+    if _structural_chunker is None:
+        # Create structural chunker
+        _structural_chunker = StructuralChunker(
+            chunk_size=300,  # Maximum chunk size in tokens
+            overlap_size=50,  # Token overlap between chunks
+        )
+        logger.info("✅ Structural chunker initialized (inbound)")
+    return _structural_chunker
+
+def get_active_chunker():
+    """Get the active chunker based on strategy configuration"""
+    if CHUNKING_STRATEGY == "semantic":
+        return get_semantic_chunker()
+    elif CHUNKING_STRATEGY == "structural":
+        return get_structural_chunker()
+    else:
+        logger.warning(f"Unknown chunking strategy: {CHUNKING_STRATEGY}, defaulting to semantic")
+        return get_semantic_chunker()
+
+def set_chunking_strategy(strategy: str):
+    """
+    Set the chunking strategy
+    
+    Args:
+        strategy: "semantic" or "structural"
+    """
+    global CHUNKING_STRATEGY
+    if strategy in ["semantic", "structural"]:
+        CHUNKING_STRATEGY = strategy
+        logger.info(f"Chunking strategy set to: {strategy}")
+    else:
+        logger.error(f"Invalid chunking strategy: {strategy}. Use 'semantic' or 'structural'")
+
+def get_chunking_strategy() -> str:
+    """Get the current chunking strategy"""
+    return CHUNKING_STRATEGY
 
 def safe_pdf_load_from_bytes_optimized(file_stream: BytesIO) -> List[Document]:
     """Memory-mapped PDF loading for faster I/O"""
@@ -123,80 +181,37 @@ async def download_pdf_from_s3(fileName: str) -> Optional[BytesIO]:
         return None
 
 def count_tokens_fast(text: str) -> int:
-    """Fast token counting using cached tokenizer"""
-    tokenizer = get_tokenizer()
-    return len(tokenizer.encode(text))
+    """Fast token counting using simple estimation"""
+    # Simple estimation: ~4 characters per token for multilingual text
+    # This is a reasonable approximation for BERT-based models
+    estimated_tokens = len(text) // 4
+    return max(estimated_tokens, 1)  # Ensure at least 1 token
 
-def ultra_fast_chunking(text: str, max_tokens: int = 512) -> List[str]:
+def adaptive_chunking(text: str, max_tokens: int = 300) -> List[str]:
     """
-    Ultra-fast regex-based chunking algorithm
-    Uses compiled patterns for 20-30% speed improvement
+    Adaptive chunking that uses the configured chunking strategy
     """
     if count_tokens_fast(text) <= max_tokens:
         return [text]
     
-    # Estimate characters per token (4 chars = 1 token)
-    chars_per_token = 4
-    target_chars = max_tokens * chars_per_token
+    # Get the active chunker
+    chunker = get_active_chunker()
     
-    chunks = []
-    start = 0
-    text_len = len(text)
+    # Update chunker's chunk size if different from default
+    if hasattr(chunker, 'chunk_size') and chunker.chunk_size != max_tokens:
+        chunker.chunk_size = max_tokens
     
-    while start < text_len:
-        # Calculate rough end position
-        end = min(start + target_chars, text_len)
-        
-        if end < text_len:
-            # Look for sentence boundaries using regex (faster than char iteration)
-            search_start = max(start + int(target_chars * 0.8), start + 1)
-            chunk_text = text[search_start:end]
-            
-            # Find last sentence boundary using compiled regex
-            sentence_matches = list(_sentence_pattern.finditer(chunk_text))
-            if sentence_matches:
-                last_sentence = sentence_matches[-1]
-                end = search_start + last_sentence.end()
-            else:
-                # Find last word boundary using compiled regex
-                word_matches = list(_word_boundary_pattern.finditer(chunk_text))
-                if word_matches:
-                    last_word = word_matches[-1]
-                    end = search_start + last_word.start()
-        
-        chunk = text[start:end].strip()
-        if chunk:
-            # Validate token count
-            if count_tokens_fast(chunk) > max_tokens:
-                # Force split at word boundaries using regex
-                words = _word_boundary_pattern.split(chunk)
-                words = [w for w in words if w.strip()]  # Remove empty strings
-                
-                current_chunk = []
-                current_text = ""
-                
-                for word in words:
-                    test_text = " ".join(current_chunk + [word])
-                    if count_tokens_fast(test_text) <= max_tokens:
-                        current_chunk.append(word)
-                        current_text = test_text
-                    else:
-                        if current_text:
-                            chunks.append(current_text)
-                        current_chunk = [word]
-                        current_text = word
-                
-                if current_text:
-                    chunks.append(current_text)
-            else:
-                chunks.append(chunk)
-        
-        start = end
+    # Chunk the text using the active strategy
+    chunks = chunker.chunk_text(text)
     
-    return chunks
+    # Filter out empty chunks and return
+    return [chunk for chunk in chunks if chunk.strip()]
+
+# Backward compatibility aliases
+semantic_chunking = adaptive_chunking
 
 # Backward compatibility alias
-optimized_text_chunking = ultra_fast_chunking
+optimized_text_chunking = semantic_chunking
 
 def optimized_page_mapping(chunks: List[str], page_texts: List[str]) -> List[tuple[int, int]]:
     """
@@ -246,9 +261,7 @@ async def warm_up_embedding_model():
     global _embedding_model_warmed
     if not _embedding_model_warmed:
         try:
-            # Import here to avoid circular imports
-            from app.local_embedding import get_local_embedding_model
-            
+            # Import here to avoid circular imports            
             def _warmup():
                 model = get_local_embedding_model()
                 # Process a small dummy text to warm up the model
@@ -389,13 +402,14 @@ async def process_pdf_pipeline_optimized(fileName: str, courseId: str, slideId: 
     full_text = "".join(page_texts)
     logger.info(f"Step 2 complete: Full text built in {(time.time() - step_start)*1000:.0f}ms")
 
-    # === Step 3: Ultra-fast regex-based chunking ===
+    # === Step 3: Adaptive chunking ===
     step_start = time.time()
+    logger.info(f"Using {CHUNKING_STRATEGY} chunking strategy")
     def _chunk_text():
-        return ultra_fast_chunking(full_text, max_tokens=512)
+        return adaptive_chunking(full_text, max_tokens=512)
     
     chunks = await loop.run_in_executor(thread_pool, _chunk_text)
-    logger.info(f"Step 3 complete: {len(chunks)} chunks created in {(time.time() - step_start)*1000:.0f}ms")
+    logger.info(f"Step 3 complete: {len(chunks)} chunks created using {CHUNKING_STRATEGY} strategy in {(time.time() - step_start)*1000:.0f}ms")
 
     # === Step 4: Optimized page mapping ===
     step_start = time.time()
@@ -471,7 +485,7 @@ async def process_pdf_pipeline_optimized(fileName: str, courseId: str, slideId: 
 
 def cleanup_inbound_connections():
     """Clean up connections on shutdown"""
-    global _thread_pool, _s3_client, _chroma_collection
+    global _thread_pool, _s3_client, _chroma_collection, _semantic_chunker, _structural_chunker
     
     if _thread_pool:
         _thread_pool.shutdown(wait=True)
@@ -479,6 +493,8 @@ def cleanup_inbound_connections():
     
     _s3_client = None
     _chroma_collection = None
+    _semantic_chunker = None
+    _structural_chunker = None
     cleanup_local_embedding_model()
     cleanup_chroma_client()
     

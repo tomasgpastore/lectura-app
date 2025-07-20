@@ -161,6 +161,7 @@ def chroma_count_vectors(
 def chroma_delete_vectors(
     collection,
     course_id: str,
+    
     slide_id: str,
     s3_path: str
 ) -> bool:
@@ -175,19 +176,20 @@ def chroma_delete_vectors(
                 "slideId": slide_id,
                 "s3_path": s3_path
             },
-            include=["metadatas"]
+            include=["ids", "metadatas"]
         )
         
         # Get the IDs from results
-        if results["ids"] and results["ids"][0]:
-            ids_to_delete = results["ids"][0]
-            if ids_to_delete:
-                collection.delete(ids=ids_to_delete)
-                logger.info(f"Successfully deleted {len(ids_to_delete)} vectors from ChromaDB")
-                return True
+        ids_to_delete = results.get("ids", [[]])[0] if results.get("ids") else []
         
-        logger.info("No vectors found to delete")
-        return True
+        if ids_to_delete:
+            logger.info(f"Found {len(ids_to_delete)} vectors to delete")
+            collection.delete(ids=ids_to_delete)
+            logger.info(f"Successfully deleted {len(ids_to_delete)} vectors from ChromaDB")
+            return True
+        else:
+            logger.info("No vectors found to delete")
+            return True
         
     except Exception as e:
         logger.error(f"Error deleting vectors from ChromaDB: {str(e)}")

@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useMemo } from 'react';
 import { ChevronsLeft, ChevronsRight, Search } from 'lucide-react';
 import { Document } from '../../types';
 import { FileUploadArea } from './FileUploadArea';
@@ -25,9 +25,23 @@ export const FileManager: React.FC<FileManagerProps> = ({
   onPreviewDocument,
   onDeleteConfirmation,
   onEditDocument,
-  searchQuery = '',
-  onSearchChange,
+  searchQuery: externalSearchQuery = '',
+  onSearchChange: externalOnSearchChange,
 }) => {
+  // Internal search state - this won't cause parent re-renders
+  const [internalSearchQuery, setInternalSearchQuery] = useState('');
+  
+  // Use external search if provided, otherwise use internal
+  const searchQuery = externalSearchQuery || internalSearchQuery;
+  const onSearchChange = externalOnSearchChange || setInternalSearchQuery;
+  
+  // Filter documents based on search query
+  const filteredDocuments = useMemo(() => {
+    if (!searchQuery.trim()) return documents;
+    return documents.filter(doc =>
+      doc.name.toLowerCase().includes(searchQuery.toLowerCase())
+    );
+  }, [documents, searchQuery]);
   return (
     <div className={`${isCollapsed ? 'w-39' : 'w-96'} p-2 transition-all duration-200 ease-out will-change-transform`}>
       <div className="bg-white dark:bg-neutral-800 dark:border-neutral-700 rounded-xl border flex flex-col h-full">
@@ -61,28 +75,26 @@ export const FileManager: React.FC<FileManagerProps> = ({
                     Documents
                   </h3>
                   <span className="text-sm text-gray-500 dark:text-gray-400">
-                    {documents.length} files
+                    {filteredDocuments.length} of {documents.length} files
                   </span>
                 </div>
                 
                 {/* Search Bar */}
-                {onSearchChange && (
-                  <div className="relative mb-4">
-                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                      <Search className="h-4 w-4 text-gray-400" />
-                    </div>
-                    <input
-                      type="text"
-                      value={searchQuery}
-                      onChange={(e) => onSearchChange(e.target.value)}
-                      placeholder="Search documents..."
-                      className="block w-full pl-10 pr-3 py-2 border border-gray-300 dark:border-neutral-600 rounded-lg text-sm placeholder-gray-500 dark:placeholder-gray-400 bg-white dark:bg-neutral-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent"
-                    />
+                <div className="relative mb-4">
+                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                    <Search className="h-4 w-4 text-gray-400" />
                   </div>
-                )}
+                  <input
+                    type="text"
+                    value={searchQuery}
+                    onChange={(e) => onSearchChange(e.target.value)}
+                    placeholder="Search documents..."
+                    className="block w-full pl-10 pr-3 py-2 border border-gray-300 dark:border-neutral-600 rounded-lg text-sm placeholder-gray-500 dark:placeholder-gray-400 bg-white dark:bg-neutral-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+                  />
+                </div>
                 
                 <DocumentList
-                  documents={documents}
+                  documents={filteredDocuments}
                   onPreviewDocument={onPreviewDocument}
                   onDeleteConfirmation={onDeleteConfirmation}
                   onEditDocument={onEditDocument}

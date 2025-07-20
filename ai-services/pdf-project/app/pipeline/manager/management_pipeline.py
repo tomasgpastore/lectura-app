@@ -2,7 +2,7 @@
 # TODO: Implement deletion functionality 
 
 from app.config import get_env_var
-from app.chroma_client import get_chroma_collection, chroma_count_vectors, chroma_delete_vectors, cleanup_chroma_client
+from database.chroma_client import get_chroma_collection, chroma_count_vectors, chroma_delete_vectors, cleanup_chroma_client
 import logging
 import time
 import asyncio
