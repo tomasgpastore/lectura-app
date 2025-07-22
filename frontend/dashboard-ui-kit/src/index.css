@@ -19,22 +19,7 @@ html, body {
   left: 0;
 }
 
-/* PDF Viewer styles */
-.rpv-core__viewer {
-  border: none !important;
-  height: 100% !important;
-}
-
-.rpv-core__viewer-container {
-  overflow: auto !important;
-  height: 100% !important;
-  scroll-behavior: smooth !important;
-}
-
-.rpv-default-layout__container {
-  height: 100% !important;
-}
-
+/* PDF Viewer styles - minimal overrides only */
 .rpv-core__page-layer {
   user-select: text !important;
   -webkit-user-select: text !important;
@@ -42,84 +27,6 @@ html, body {
   -ms-user-select: text !important;
 }
 
-/* Hide all unwanted toolbar elements */
-.rpv-default-layout__toolbar {
-  display: none !important;
-}
-
-.rpv-toolbar {
-  display: none !important;
-}
-
-.rpv-default-layout__main {
-  height: 100% !important;
-}
-
-.rpv-default-layout__body {
-  height: 100% !important;
-}
-
-/* Hide sidebar completely */
-.rpv-default-layout__sidebar {
-  display: none !important;
-}
-
-.rpv-default-layout__container {
-  display: flex !important;
-  flex-direction: column !important;
-  height: 100% !important;
-}
-
-/* PDF viewer styling */
-.rpv-core__inner-pages {
-  padding: 1rem !important;
-}
-
-.rpv-core__page-layer {
-  margin-bottom: 1rem !important;
-  box-shadow: none !important;
-  border-radius: 4px !important;
-}
-
-/* Smooth scrolling for vertical mode */
-.rpv-core__inner-pages {
-  display: flex !important;
-  flex-direction: column !important;
-  gap: 1rem !important;
-}
-
-.rpv-core__inner-page {
-  flex-shrink: 0 !important;
-}
-
-/* Prevent automatic page centering/jumping */
-.rpv-core__viewer-container {
-  scroll-snap-type: none !important;
-}
-
-.rpv-core__page-layer {
-  scroll-snap-align: none !important;
-}
-
-/* Override any built-in scroll behavior */
-.rpv-core__viewer {
-  scroll-behavior: smooth !important;
-}
-
-.rpv-core__viewer * {
-  scroll-behavior: inherit !important;
-}
-
-/* Prevent page jumping in vertical scroll mode */
-.rpv-scroll-mode__vertical .rpv-core__page-layer {
-  scroll-snap-align: none !important;
-  scroll-margin: 0 !important;
-}
-
-.rpv-scroll-mode__vertical .rpv-core__viewer-container {
-  scroll-snap-type: none !important;
-  scroll-padding: 0 !important;
-}
 
 /* Custom selection popup */
 .pdf-text-selection-popup {
@@ -176,9 +83,18 @@ html, body {
   transform-origin: 0% 0% !important;
 }
 
-/* Optimize selection performance */
+/* Optimize selection performance - Stronger blue highlight for better visibility */
 .rpv-core__text-layer .rpv-core__text-layer-text::selection {
-  background: rgba(0, 123, 255, 0.3) !important;
+  background: rgba(0, 123, 255, 0.7) !important;
+}
+
+/* Additional selection styles for consistency */
+.rpv-core__page-layer *::selection {
+  background: rgba(0, 123, 255, 0.7) !important;
+}
+
+.rpv-core__text-layer *::selection {
+  background: rgba(0, 123, 255, 0.7) !important;
 }
 
 /* Ensure text selection works properly */
@@ -292,6 +208,31 @@ p + .katex-display {
 }
 
 .dark .bookmark-popup .rpv-bookmark__title {
+  color: #f9fafb !important;
+}
+
+/* Fix "There is no bookmark" text in dark mode */
+.rpv-bookmark__empty,
+.rpv-bookmark__empty-text {
+  color: #6b7280 !important; /* Light mode - gray-500 */
+  font-size: 0.875rem !important;
+  padding: 0.5rem !important;
+  text-align: center !important;
+}
+
+.dark .rpv-bookmark__empty,
+.dark .rpv-bookmark__empty-text {
+  color: #d1d5db !important; /* Dark mode - gray-300 */
+}
+
+/* Ensure all bookmark-related text follows theme */
+.rpv-bookmark__container,
+.rpv-bookmark__container * {
+  color: inherit !important;
+}
+
+.dark .rpv-bookmark__container,
+.dark .rpv-bookmark__container * {
   color: #f9fafb !important;
 }
 

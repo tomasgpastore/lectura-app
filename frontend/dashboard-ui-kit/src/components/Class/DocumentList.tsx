@@ -5,6 +5,7 @@ import { formatFileSize } from '../../utils/class/documentUtils';
 
 interface DocumentListProps {
   documents: Document[];
+  isLoading?: boolean;
   onPreviewDocument: (document: Document) => void;
   onDeleteConfirmation: (document: Document) => void;
   onEditDocument?: (document: Document) => void;
@@ -12,6 +13,7 @@ interface DocumentListProps {
 
 export const DocumentList: React.FC<DocumentListProps> = React.memo(({
   documents,
+  isLoading = false,
   onPreviewDocument,
   onDeleteConfirmation,
   onEditDocument,
@@ -46,6 +48,17 @@ export const DocumentList: React.FC<DocumentListProps> = React.memo(({
     document.addEventListener('click', handleClickOutside);
     return () => document.removeEventListener('click', handleClickOutside);
   }, []);
+
+  if (isLoading) {
+    return (
+      <div className="text-center py-8">
+        <Loader2 className="w-12 h-12 text-orange-600 dark:text-orange-400 mx-auto mb-3 animate-spin" />
+        <p className="text-sm text-gray-500 dark:text-gray-400">
+          Loading documents...
+        </p>
+      </div>
+    );
+  }
 
   if (documents.length === 0) {
     return (
