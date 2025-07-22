@@ -17,6 +17,7 @@
     "@react-pdf-viewer/highlight": "^3.12.0",
     "@react-pdf-viewer/page-navigation": "^3.12.0",
     "@react-pdf-viewer/scroll-mode": "^3.12.0",
+    "@react-pdf-viewer/selection-mode": "^3.12.0",
     "@react-pdf-viewer/zoom": "^3.12.0",
     "@tanstack/react-query": "^5.81.5",
     "@tanstack/react-virtual": "^3.13.12",

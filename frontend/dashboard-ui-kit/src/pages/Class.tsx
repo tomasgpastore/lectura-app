@@ -1,29 +1,29 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useParams } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Header } from '../components/Layout/Header';
 import { 
   FileManager, 
-  DocumentPreview, 
   ChatInterface, 
   RemoveDocumentModal,
   EditDocumentModal,
   DeleteErrorModal
 } from '../components/Class';
+import { DocumentPreview } from '../components/Class/DocumentPreview';
 import { useDocumentManager } from '../lib/hooks/useDocumentManager';
 import { useChatManager } from '../lib/hooks/useChatManager';
-import { useResizeManager } from '../lib/hooks/useResizeManager';
 import { courseApi, slideApi } from '../lib/api/api';
 
 // Memoized components to prevent unnecessary re-renders
 const MemoizedChatInterface = React.memo(ChatInterface);
 const MemoizedFileManager = React.memo(FileManager);
-const MemoizedDocumentPreview = React.memo(DocumentPreview);
 
 export const Class: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const queryClient = useQueryClient();
   const [isFileManagerCollapsed, setIsFileManagerCollapsed] = useState(false);
+  const [selectedTextForChat, setSelectedTextForChat] = useState<string>('');
+
 
   // Fetch course data with better caching while ensuring data loads
   const { data: course, isLoading: courseLoading, error: courseError } = useQuery({
@@ -51,7 +51,7 @@ export const Class: React.FC = () => {
   // Custom hooks for functionality
   const documentManager = useDocumentManager(id, allSlides);
   const chatManager = useChatManager(id, documentManager.selectedDocument);
-  const resizeManager = useResizeManager();
+
 
   // Handle opening file from source citation
   const handleOpenInFile = (s3FileName: string, pageStart: number) => {
@@ -92,6 +92,38 @@ export const Class: React.FC = () => {
     }
   };
 
+  // Set selected text for chat (new approach - for cloud popup)
+  const setSelectedTextForChatHandler = (text: string) => {
+    setSelectedTextForChat(text);
+  };
+
+  // Clear selected text
+  const clearSelectedText = () => {
+    setSelectedTextForChat('');
+  };
+
+  // Handle form submission with combined text
+  const handleCombinedSubmit = (e: React.FormEvent, inputValue: string, selectedText?: string) => {
+    e.preventDefault();
+    
+    // Combine the input message and selected text
+    let combinedMessage = inputValue.trim();
+    
+    if (selectedText && selectedText.trim()) {
+      combinedMessage = combinedMessage 
+        ? `${combinedMessage}\n\n"${selectedText}"`
+        : `"${selectedText}"`;
+    }
+    
+    if (combinedMessage) {
+      // Use the new method to send with custom message
+      chatManager.handleSubmitWithMessage(combinedMessage);
+      
+      // Clear both inputs
+      chatManager.handleInputChange('');
+      clearSelectedText();
+    }
+  };
 
   // Show file management only when no document is previewed
   const showFileManagement = !documentManager.selectedDocument;
@@ -137,19 +169,76 @@ export const Class: React.FC = () => {
   }
 
   return (
-    <div className={`h-screen bg-blue-50 dark:bg-neutral-900 flex flex-col ${resizeManager.isResizing ? 'cursor-col-resize' : ''}`}>
-        <Header 
-          courseName={(displayCourse as { name?: string })?.name || 'Loading...'}
-          courseCode={(displayCourse as { code?: string })?.code || ''}
-          lightBlueTheme={true}
-        />
+    <div className="h-screen bg-blue-50 dark:bg-neutral-900 flex flex-col">
+      <Header 
+        courseName={(displayCourse as { name?: string })?.name || 'Loading...'}
+        courseCode={(displayCourse as { code?: string })?.code || ''}
+        lightBlueTheme={true}
+      />
 
-        {/* Main Layout - Full Screen with top padding for fixed header */}
-        <div className="flex-1 flex pt-16 main-content-container min-h-0">
-        {/* File Management Block */}
+      <style>
+        {`
+          /* Custom yellow scrollbar styles */
+          ::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+          }
+          
+          ::-webkit-scrollbar-track {
+            background: #f8f9fa;
+            border-radius: 4px;
+          }
+          
+          ::-webkit-scrollbar-thumb {
+            background: linear-gradient(180deg, #FFD700, #FFC700);
+            border-radius: 4px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+          }
+          
+          ::-webkit-scrollbar-thumb:hover {
+            background: linear-gradient(180deg, #FFC700, #FFB000);
+          }
+
+          /* Modern button styles */
+          .modern-btn {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            border: none;
+            border-radius: 8px;
+            color: white;
+            padding: 8px 16px;
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            box-shadow: 0 2px 8px rgba(102, 126, 234, 0.3);
+            margin: 0 4px;
+          }
+          
+          .modern-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+          }
+          
+          .modern-btn:active {
+            transform: translateY(0);
+          }
+          
+          .modern-btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none;
+          }
+
+        `}
+      </style>
+
+      {/* Main Layout - Full Screen with top padding for fixed header */}
+      <div className="flex-1 flex pt-16 main-content-container min-h-0">
+        {/* File Upload Section - only show when no document selected */}
         {showFileManagement && (
           <MemoizedFileManager
             documents={documentManager.documents}
+            isLoading={slidesLoading}
             isCollapsed={isFileManagerCollapsed}
             onToggleCollapse={() => setIsFileManagerCollapsed(!isFileManagerCollapsed)}
             onFilesUploaded={documentManager.handleFilesUploaded}
@@ -159,47 +248,52 @@ export const Class: React.FC = () => {
           />
         )}
 
-        {/* Document Preview */}
+        {/* Document Preview Section - replace file upload when document is selected */}
         {documentManager.selectedDocument && (
-          <>
-            <div className="p-2 h-full" style={{ width: `${resizeManager.previewWidth}%` }}>
-              <MemoizedDocumentPreview
-                document={documentManager.selectedDocument}
-                onClose={() => documentManager.setSelectedDocument(null)}
-                onAddToChat={(text) => {
-                  const currentInput = chatManager.inputMessage;
-                  const newInput = currentInput ? `${currentInput}\n\n"${text}"` : `"${text}"`;
-                  chatManager.handleInputChange(newInput);
-                }}
-                onPageChange={documentManager.handlePageChange}
-                initialPage={documentManager.currentPage}
+          <div style={{ display: 'flex', height: '100%', width: '100%' }}>
+            <DocumentPreview
+              document={documentManager.selectedDocument}
+              onClose={() => documentManager.setSelectedDocument(null)}
+              onSetSelectedTextForChat={setSelectedTextForChatHandler}
+              onPageChange={documentManager.setCurrentPage}
+              initialPage={documentManager.currentPage}
+              courseId={id}
+            >
+              <MemoizedChatInterface
+                messages={chatManager.messages}
+                isAiLoading={chatManager.isAiLoading}
+                inputMessage={chatManager.inputMessage}
+                onInputChange={chatManager.handleInputChange}
+                onSubmit={(e) => handleCombinedSubmit(e, chatManager.inputMessage, selectedTextForChat)}
+                onClearChat={chatManager.handleClearChat}
+                streamingMessageIds={chatManager.streamingMessageIds}
+                onOpenInFile={handleOpenInFile}
+                slides={allSlides}
+                selectedTextForChat={selectedTextForChat}
+                onClearSelectedText={clearSelectedText}
               />
-            </div>
-            
-            {/* Resize Handle */}
-            <div className="py-2 flex items-center">
-              <div 
-                className="w-1 h-full bg-gray-300 dark:bg-neutral-600 hover:bg-blue-400 dark:hover:bg-blue-500 cursor-col-resize transition-colors"
-                onMouseDown={resizeManager.handleMouseDown}
-              />
-            </div>
-          </>
+            </DocumentPreview>
+          </div>
         )}
 
-        {/* Chat Interface Block */}
-        <div className="flex-1 p-2 h-full" style={{ width: documentManager.selectedDocument ? `${100 - resizeManager.previewWidth}%` : '100%' }}>
-          <MemoizedChatInterface
-            messages={chatManager.messages}
-            isAiLoading={chatManager.isAiLoading}
-            inputMessage={chatManager.inputMessage}
-            onInputChange={chatManager.handleInputChange}
-            onSubmit={chatManager.handleSubmit}
-            onClearChat={chatManager.handleClearChat}
-            streamingMessageIds={chatManager.streamingMessageIds}
-            onOpenInFile={handleOpenInFile}
-            slides={allSlides}
-          />
-        </div>
+        {/* Chat Only Section - when no document selected */}
+        {!documentManager.selectedDocument && (
+          <div className="flex-1 p-2 h-full">
+            <MemoizedChatInterface
+              messages={chatManager.messages}
+              isAiLoading={chatManager.isAiLoading}
+              inputMessage={chatManager.inputMessage}
+              onInputChange={chatManager.handleInputChange}
+              onSubmit={(e) => handleCombinedSubmit(e, chatManager.inputMessage, selectedTextForChat)}
+              onClearChat={chatManager.handleClearChat}
+              streamingMessageIds={chatManager.streamingMessageIds}
+              onOpenInFile={handleOpenInFile}
+              slides={allSlides}
+              selectedTextForChat={selectedTextForChat}
+              onClearSelectedText={clearSelectedText}
+            />
+          </div>
+        )}
       </div>
 
       {/* Remove Document Modal */}

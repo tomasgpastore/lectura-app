@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { ChevronsLeft, ChevronsRight, Search } from 'lucide-react';
+import { ChevronsLeft, ChevronsRight, Search, Plus, FileText } from 'lucide-react';
 import { Document } from '../../types';
 import { FileUploadArea } from './FileUploadArea';
 import { DocumentList } from './DocumentList';
@@ -7,6 +7,7 @@ import { CollapsedFileIcons } from './CollapsedFileIcons';
 
 interface FileManagerProps {
   documents: Document[];
+  isLoading?: boolean;
   isCollapsed: boolean;
   onToggleCollapse: () => void;
   onFilesUploaded: (files: File[]) => void;
@@ -19,6 +20,7 @@ interface FileManagerProps {
 
 export const FileManager: React.FC<FileManagerProps> = ({
   documents,
+  isLoading = false,
   isCollapsed,
   onToggleCollapse,
   onFilesUploaded,
@@ -47,19 +49,24 @@ export const FileManager: React.FC<FileManagerProps> = ({
       <div className="bg-white dark:bg-neutral-800 dark:border-neutral-700 rounded-xl border flex flex-col h-full">
         {!isCollapsed ? (
           <>
+            {/* Header */}
+            <div className="flex items-center justify-between px-4 py-2 border-b border-gray-200 dark:border-neutral-700 flex-shrink-0">
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Documents</h3>
+              <button
+                onClick={onToggleCollapse}
+                className="p-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
+                title="Collapse sidebar"
+              >
+                <ChevronsLeft className="w-5 h-5" />
+              </button>
+            </div>
+
             {/* File Upload Section */}
             <div className="p-6">
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
+              <div className="mb-4">
+                <h4 className="text-base font-medium text-gray-900 dark:text-white mb-4">
                   Upload Documents
-                </h3>
-                <button
-                  onClick={onToggleCollapse}
-                  className="p-1 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
-                  title="Collapse sidebar"
-                >
-                  <ChevronsLeft className="w-5 h-5" />
-                </button>
+                </h4>
               </div>
               <FileUploadArea onFilesUploaded={onFilesUploaded} />
             </div>
@@ -67,34 +74,35 @@ export const FileManager: React.FC<FileManagerProps> = ({
             {/* Divider */}
             <div className="mx-6 border-b border-gray-200 dark:border-neutral-700"></div>
 
-            {/* File List */}
+            {/* File List Header - Fixed */}
+            <div className="px-6 pt-4 pb-2">
+              <div className="flex items-center justify-between mb-4">
+                <span className="text-sm text-gray-500 dark:text-gray-400">
+                  {isLoading ? 'Loading...' : `${filteredDocuments.length} of ${documents.length} files`}
+                </span>
+              </div>
+              
+              {/* Search Bar */}
+              <div className="relative mb-2">
+                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                  <Search className="h-4 w-4 text-gray-400" />
+                </div>
+                <input
+                  type="text"
+                  value={searchQuery}
+                  onChange={(e) => onSearchChange(e.target.value)}
+                  placeholder="Search documents..."
+                  className="block w-full pl-10 pr-3 py-2 border border-gray-300 dark:border-neutral-600 rounded-lg text-sm placeholder-gray-500 dark:placeholder-gray-400 bg-white dark:bg-neutral-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+                />
+              </div>
+            </div>
+
+            {/* File List - Scrollable */}
             <div className="flex-1 overflow-y-auto">
-              <div className="p-6">
-                <div className="flex items-center justify-between mb-4">
-                  <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
-                    Documents
-                  </h3>
-                  <span className="text-sm text-gray-500 dark:text-gray-400">
-                    {filteredDocuments.length} of {documents.length} files
-                  </span>
-                </div>
-                
-                {/* Search Bar */}
-                <div className="relative mb-4">
-                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                    <Search className="h-4 w-4 text-gray-400" />
-                  </div>
-                  <input
-                    type="text"
-                    value={searchQuery}
-                    onChange={(e) => onSearchChange(e.target.value)}
-                    placeholder="Search documents..."
-                    className="block w-full pl-10 pr-3 py-2 border border-gray-300 dark:border-neutral-600 rounded-lg text-sm placeholder-gray-500 dark:placeholder-gray-400 bg-white dark:bg-neutral-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent"
-                  />
-                </div>
-                
+              <div className="p-6 pt-4">
                 <DocumentList
                   documents={filteredDocuments}
+                  isLoading={isLoading}
                   onPreviewDocument={onPreviewDocument}
                   onDeleteConfirmation={onDeleteConfirmation}
                   onEditDocument={onEditDocument}
@@ -104,22 +112,65 @@ export const FileManager: React.FC<FileManagerProps> = ({
           </>
         ) : (
           /* Collapsed Sidebar */
-          <div className="p-2 flex flex-col items-center h-full">
-            {/* Expand Button */}
-            <button
-              onClick={onToggleCollapse}
-              className="p-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors mb-4"
-              title="Expand sidebar"
-            >
-              <ChevronsRight className="w-5 h-5" />
-            </button>
+          <>
+            {/* Header */}
+            <div className="flex items-center justify-center px-4 py-2 border-b border-gray-200 dark:border-neutral-700 flex-shrink-0">
+              <button
+                onClick={onToggleCollapse}
+                className="p-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
+                title="Expand sidebar"
+              >
+                <ChevronsRight className="w-5 h-5" />
+              </button>
+            </div>
             
-            <CollapsedFileIcons
-              documents={documents}
-              onPreviewDocument={onPreviewDocument}
-              onFilesUploaded={onFilesUploaded}
-            />
-          </div>
+            {/* Add File Button - Fixed */}
+            <div className="p-2 pt-6 flex justify-center">
+              <input
+                type="file"
+                multiple
+                accept=".pdf,.doc,.docx,.txt,.md"
+                onChange={(e) => {
+                  const files = Array.from(e.target.files || []);
+                  if (files.length > 0) {
+                    onFilesUploaded(files);
+                  }
+                }}
+                className="hidden"
+                id="file-upload-collapsed"
+              />
+              <label 
+                htmlFor="file-upload-collapsed"
+                className="group cursor-pointer inline-block p-2 bg-gradient-to-r from-orange-600 to-red-600 hover:from-orange-700 hover:to-red-700 text-white rounded-lg transition-all duration-300 shadow-lg hover:shadow-xl hover:scale-105"
+                title="Add file"
+              >
+                <Plus className="w-5 h-5 group-hover:rotate-90 transition-transform duration-300" />
+              </label>
+            </div>
+
+            {/* Document Icons - Scrollable */}
+            <div className="flex-1 overflow-y-auto p-2">
+              <div className="flex flex-col items-center space-y-2">
+                {documents.map((doc) => (
+                  <button
+                    key={doc.id}
+                    onClick={() => onPreviewDocument(doc)}
+                    className={`p-2 rounded-lg transition-all duration-200 group ${
+                      doc.isLoading 
+                        ? 'cursor-default' 
+                        : 'hover:bg-gray-100 dark:hover:bg-neutral-700 hover:scale-105'
+                    }`}
+                    title={doc.name}
+                    disabled={doc.isLoading}
+                  >
+                    <FileText className={`w-5 h-5 text-orange-600 dark:text-orange-400 ${
+                      doc.isLoading ? 'animate-pulse' : ''
+                    }`} />
+                  </button>
+                ))}
+              </div>
+            </div>
+          </>
         )}
       </div>
     </div>

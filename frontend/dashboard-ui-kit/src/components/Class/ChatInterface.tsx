@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Bot, Copy, Menu, Trash2, Check, ArrowUp } from 'lucide-react';
 import { ChatMessageUI } from '../../types';
 import { MarkdownRenderer } from './MarkdownRenderer';
+import { TextCloudPopup } from './TextCloudPopup';
 
 // Memoized message component to prevent unnecessary re-renders
 const MessageComponent = React.memo(({ 
@@ -33,7 +34,22 @@ const MessageComponent = React.memo(({
           // User message - no background, borders, picture, or time
           <div className="inline-block px-4 py-3 rounded-2xl bg-orange-600 text-white text-left max-w-md">
             <div className="prose prose-base prose-invert max-w-none">
-              <p className="text-base leading-relaxed m-0 text-white">{message.content}</p>
+              {/* Show selected text first if it contains selected text */}
+              {message.content.includes('"') && message.content.includes('\n\n"') ? (
+                <>
+                  <div 
+                    className="text-sm text-orange-200 italic overflow-hidden whitespace-nowrap text-ellipsis mb-2"
+                    title={message.content.split('\n\n"')[1]?.replace(/"$/, '') || ''}
+                  >
+                    "{message.content.split('\n\n"')[1]?.replace(/"$/, '') || ''}"
+                  </div>
+                  <p className="text-base leading-relaxed m-0 text-white">
+                    {message.content.split('\n\n"')[0]}
+                  </p>
+                </>
+              ) : (
+                <p className="text-base leading-relaxed m-0 text-white">{message.content}</p>
+              )}
             </div>
           </div>
         ) : (
@@ -88,6 +104,8 @@ interface ChatInterfaceProps {
   streamingMessageIds: Set<string>;
   onOpenInFile?: (s3FileName: string, pageStart: number, rawText: string) => void;
   slides?: Array<{ id: string; originalFileName: string }>;
+  selectedTextForChat?: string;
+  onClearSelectedText?: () => void;
 }
 
 export const ChatInterface: React.FC<ChatInterfaceProps> = ({
@@ -100,6 +118,8 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
   streamingMessageIds,
   onOpenInFile,
   slides = [],
+  selectedTextForChat,
+  onClearSelectedText,
 }) => {
   const [showMenu, setShowMenu] = useState(false);
   const [copiedMessageId, setCopiedMessageId] = useState<string | null>(null);
@@ -235,10 +255,18 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
     setShowMenu(false);
   };
 
+
+  // Handle closing the cloud popup
+  const handleCloseCloud = () => {
+    if (onClearSelectedText) {
+      onClearSelectedText();
+    }
+  };
+
   return (
-    <div className="bg-white dark:bg-neutral-800 dark:border-neutral-700 rounded-xl border flex flex-col h-full max-h-[calc(100vh-2rem)] overflow-hidden">
+    <div className="bg-white dark:bg-neutral-800 dark:border-neutral-700 rounded-xl border flex flex-col h-full">
       {/* Header with Menu */}
-      <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-neutral-700">
+      <div className="flex items-center justify-between px-4 py-2 border-b border-gray-200 dark:border-neutral-700 flex-shrink-0">
         <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Chat</h3>
         <div className="relative" ref={menuRef}>
           <button
@@ -333,8 +361,20 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
         <div className="max-w-4xl mx-auto px-12 py-1">
           <form onSubmit={onSubmit} className="w-full bg-transparent">
             <div className="relative">
-              {/* Outer container with rounded corners and focus ring */}
-              <div className="bg-white dark:bg-neutral-700 border border-gray-300 dark:border-neutral-600 rounded-xl focus-within:ring-2 focus-within:ring-orange-500 focus-within:border-orange-500 transition-all duration-200">
+              {/* Outer container with rounded corners and focus ring - taller when cloud is present */}
+              <div className={`bg-white dark:bg-neutral-700 border border-gray-300 dark:border-neutral-600 rounded-xl focus-within:ring-2 focus-within:ring-orange-500 focus-within:border-orange-500 transition-all duration-200 ${selectedTextForChat ? 'pb-2' : ''}`}>
+                {/* Text Cloud Popup - positioned inside input container at the top */}
+                {selectedTextForChat && (
+                  <div className="px-4 pt-3 pb-2">
+                    <TextCloudPopup
+                      text={selectedTextForChat}
+                      isVisible={true}
+                      onClose={handleCloseCloud}
+                      inline={true}
+                    />
+                  </div>
+                )}
+                
                 <textarea
                   value={inputMessage}
                   onChange={(e) => onInputChange(e.target.value)}
@@ -345,23 +385,26 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
                     }
                   }}
                   placeholder="Ask a question about your documents..."
-                  className="w-full px-4 py-3 pr-12 border-0 focus:outline-none bg-transparent text-gray-900 dark:text-white resize-none min-h-[80px] max-h-[200px] text-base placeholder:text-base"
+                  className={`w-full px-4 pr-12 border-0 focus:outline-none bg-transparent text-gray-900 dark:text-white resize-none text-base placeholder:text-base ${
+                    selectedTextForChat ? 'py-2 min-h-[80px] max-h-[180px]' : 'py-3 min-h-[100px] max-h-[220px]'
+                  }`}
                   rows={4}
                   style={{
                     height: 'auto',
-                    minHeight: '80px',
-                    maxHeight: '200px'
+                    minHeight: selectedTextForChat ? '80px' : '100px',
+                    maxHeight: selectedTextForChat ? '180px' : '220px'
                   }}
                   onInput={(e) => {
                     const target = e.target as HTMLTextAreaElement;
                     target.style.height = 'auto';
                     const scrollHeight = target.scrollHeight;
-                    const maxHeight = 200;
+                    const maxHeight = selectedTextForChat ? 180 : 220;
+                    const minHeight = selectedTextForChat ? 80 : 100;
                     if (scrollHeight > maxHeight) {
                       target.style.height = `${maxHeight}px`;
                       target.style.overflowY = 'auto';
                     } else {
-                      target.style.height = `${Math.max(80, scrollHeight)}px`;
+                      target.style.height = `${Math.max(minHeight, scrollHeight)}px`;
                       target.style.overflowY = 'hidden';
                     }
                   }}
@@ -369,7 +412,7 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
                 />
                 <button
                   type="submit"
-                  disabled={!inputMessage.trim() || isAiLoading}
+                  disabled={(!inputMessage.trim() && !selectedTextForChat?.trim()) || isAiLoading}
                   className="absolute right-3 bottom-4 p-2 bg-orange-600 hover:bg-orange-700 disabled:bg-gray-400 text-white rounded-lg transition-colors duration-200 disabled:cursor-not-allowed"
                 >
                   <ArrowUp className="w-4 h-4" />
