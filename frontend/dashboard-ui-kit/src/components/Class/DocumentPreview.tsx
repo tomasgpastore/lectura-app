@@ -5,9 +5,9 @@ import { pageNavigationPlugin } from '@react-pdf-viewer/page-navigation';
 import { selectionModePlugin } from '@react-pdf-viewer/selection-mode';
 import { useState, useEffect, useRef } from 'react';
 import { useParams } from 'react-router-dom';
+import { useQuery } from '@tanstack/react-query';
 import { slideApi } from '../../lib/api/api';
 import { X, ChevronLeft, ChevronRight, ZoomIn, ZoomOut, Bookmark } from 'lucide-react';
-import { TextCloudPopup } from './TextCloudPopup';
 
 import '@react-pdf-viewer/core/lib/styles/index.css';
 import '@react-pdf-viewer/zoom/lib/styles/index.css';
@@ -48,9 +48,6 @@ export const DocumentPreview = ({ document: doc, onClose, onAddToChat, onSetSele
   const selectionModePluginInstance = selectionModePlugin();
   
   // State management
-  const [pdfUrl, setPdfUrl] = useState<string | null>(null);
-  const [loading, setLoading] = useState<boolean>(true);
-  const [error, setError] = useState<string | null>(null);
   const [currentPage, setCurrentPage] = useState<number>(1);
   const [numPages, setNumPages] = useState<number>(0);
   const [showBookmarks, setShowBookmarks] = useState<boolean>(false);
@@ -62,27 +59,21 @@ export const DocumentPreview = ({ document: doc, onClose, onAddToChat, onSetSele
   const [isInitialLoad, setIsInitialLoad] = useState<boolean>(true);
   const [selectedText, setSelectedText] = useState<string>('');
   const [selectionPosition, setSelectionPosition] = useState<{ x: number; y: number } | null>(null);
-  const [cloudText, setCloudText] = useState<string>('');
-  const [showCloud, setShowCloud] = useState<boolean>(false);
   const bookmarkRef = useRef<HTMLDivElement>(null);
   const pageInputRef = useRef<HTMLInputElement>(null);
 
-  // Function to fetch presigned URL
-  const fetchPresignedUrl = async () => {
-    if (!courseId || !doc?.id) return;
-    
-    try {
-      setLoading(true);
-      setError(null);
-      const url = await slideApi.getPresignedUrl(courseId, doc.id);
-      setPdfUrl(url);
-    } catch (err) {
-      console.error('Error fetching presigned URL:', err);
-      setError('Failed to load document');
-    } finally {
-      setLoading(false);
-    }
-  };
+  // Use React Query to fetch presigned URL - this will deduplicate requests
+  const { data: pdfUrl, isLoading: loading, error: queryError, refetch } = useQuery({
+    queryKey: ['presigned-url', courseId, doc?.id],
+    queryFn: () => slideApi.getPresignedUrl(courseId!, doc.id),
+    enabled: !!courseId && !!doc?.id,
+    staleTime: 5 * 60 * 1000, // Consider URL fresh for 5 minutes
+    gcTime: 10 * 60 * 1000, // Keep in cache for 10 minutes
+    refetchOnWindowFocus: false,
+    retry: 1,
+  });
+
+  const error = queryError ? 'Failed to load document' : null;
 
   // Function to get localStorage key for document positions
   const getDocumentPositionsKey = () => {
@@ -109,11 +100,10 @@ export const DocumentPreview = ({ document: doc, onClose, onAddToChat, onSetSele
     return 1;
   };
 
-  // Fetch presigned URL on mount and when document changes
+  // Reset initial load flag when document changes
   useEffect(() => {
-    setIsInitialLoad(true); // Reset initial load flag when document changes
-    fetchPresignedUrl();
-  }, [courseId, doc?.id]);
+    setIsInitialLoad(true);
+  }, [doc?.id]);
 
   // Navigation functions
   const goToPrevPage = () => {
@@ -293,20 +283,10 @@ export const DocumentPreview = ({ document: doc, onClose, onAddToChat, onSetSele
       // Use new approach with cloud popup if onSetSelectedTextForChat is provided
       if (onSetSelectedTextForChat) {
         onSetSelectedTextForChat(selectedText);
-        
-        // Show cloud popup for floating version (when no children)
-        if (!children) {
-          setCloudText(selectedText);
-          setShowCloud(true);
-        }
       } 
       // Fallback to old approach for backward compatibility
       else if (onAddToChat) {
         onAddToChat(selectedText);
-        
-        // Show cloud popup
-        setCloudText(selectedText);
-        setShowCloud(true);
       }
       
       // Clear selection
@@ -316,10 +296,6 @@ export const DocumentPreview = ({ document: doc, onClose, onAddToChat, onSetSele
     }
   };
 
-  // Handle closing cloud popup
-  const handleCloseCloud = () => {
-    setShowCloud(false);
-  };
 
   // Handle close with saving position
   const handleClose = () => {
@@ -490,7 +466,7 @@ export const DocumentPreview = ({ document: doc, onClose, onAddToChat, onSetSele
           <div className="text-center py-12">
             <p className="text-red-500 dark:text-red-400 mb-4">{error}</p>
             <button 
-              onClick={() => fetchPresignedUrl()}
+              onClick={() => refetch()}
               className="px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition-colors"
             >
               Retry
@@ -570,12 +546,6 @@ export const DocumentPreview = ({ document: doc, onClose, onAddToChat, onSetSele
           </button>
         )}
 
-        {/* Text Cloud Popup */}
-        <TextCloudPopup
-          text={cloudText}
-          isVisible={showCloud}
-          onClose={handleCloseCloud}
-        />
       </>
     );
   }
@@ -726,7 +696,7 @@ export const DocumentPreview = ({ document: doc, onClose, onAddToChat, onSetSele
           <div className="text-center py-12">
             <p className="text-red-500 dark:text-red-400 mb-4">{error}</p>
             <button 
-              onClick={() => fetchPresignedUrl()}
+              onClick={() => refetch()}
               className="px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition-colors"
             >
               Retry

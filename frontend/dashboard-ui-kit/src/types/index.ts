@@ -26,8 +26,10 @@ export interface Document {
 export interface ChatMessage {
   role: string;
   content: string;
+  sources?: ChatSource[];
   timestamp: Date;
 }
+
 
 export interface ChatSource {
   id: string;
