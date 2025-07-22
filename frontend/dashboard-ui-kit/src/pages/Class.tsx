@@ -103,11 +103,14 @@ export const Class: React.FC = () => {
   };
 
   // Handle form submission with combined text
-  const handleCombinedSubmit = (e: React.FormEvent, inputValue: string, selectedText?: string) => {
+  const handleCombinedSubmit = (e: React.FormEvent & { currentMessage?: string }, inputValue: string, selectedText?: string) => {
     e.preventDefault();
     
+    // Use the message from the event if available (from ChatInputOptimized)
+    const actualInputValue = e.currentMessage !== undefined ? e.currentMessage : inputValue;
+    
     // Combine the input message and selected text
-    let combinedMessage = inputValue.trim();
+    let combinedMessage = actualInputValue.trim();
     
     if (selectedText && selectedText.trim()) {
       combinedMessage = combinedMessage 

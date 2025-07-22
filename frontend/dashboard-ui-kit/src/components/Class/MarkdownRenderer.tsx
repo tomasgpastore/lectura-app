@@ -111,6 +111,7 @@ export const MarkdownRenderer: React.FC<MarkdownRendererProps> = React.memo(({
   const [selectedSource, setSelectedSource] = useState<ChatSource | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [copiedCode, setCopiedCode] = useState<string | null>(null);
+  const [expandedCitations, setExpandedCitations] = useState<Set<string>>(new Set());
 
   const handleSourceClick = (sourceNumber: number) => {
     // Try to get source from mapping first, then fallback to array
@@ -171,19 +172,60 @@ export const MarkdownRenderer: React.FC<MarkdownRendererProps> = React.memo(({
         parts.push(currentPageButton);
       } else {
         const sourceNumbers = sourceNumbersStr.split(',').map(num => parseInt(num.trim())).filter(num => !isNaN(num));
+        const citationGroupKey = `${match!.index}`;
+        const isExpanded = expandedCitations.has(citationGroupKey);
         
-        // Create buttons for each source number
-        const citationButtons = sourceNumbers.map((sourceNumber, index) => (
-          <button
-            key={`citation-${sourceNumber}-${match!.index}-${index}`}
-            onClick={() => handleSourceClick(sourceNumber)}
-            className="inline-flex items-center px-1.5 py-0.5 ml-0.5 mr-0.5 text-xs font-medium bg-orange-100 hover:bg-orange-200 dark:bg-orange-900 dark:hover:bg-orange-800 text-orange-800 dark:text-orange-200 rounded transition-colors cursor-pointer border border-orange-200 dark:border-orange-700"
-            title={`View source ${sourceNumber}`}
-          >
-            {sourceNumber}
-          </button>
-        ));
-        parts.push(...citationButtons);
+        if (sourceNumbers.length > 3) {
+          // Show only first 2 sources + ellipsis button when collapsed
+          const visibleSources = isExpanded ? sourceNumbers : sourceNumbers.slice(0, 2);
+          
+          // Create buttons for visible source numbers
+          const citationButtons = visibleSources.map((sourceNumber, index) => (
+            <button
+              key={`citation-${sourceNumber}-${match!.index}-${index}`}
+              onClick={() => handleSourceClick(sourceNumber)}
+              className="inline-flex items-center px-1.5 py-0.5 ml-0.5 mr-0.5 text-xs font-medium bg-orange-100 hover:bg-orange-200 dark:bg-orange-900 dark:hover:bg-orange-800 text-orange-800 dark:text-orange-200 rounded transition-colors cursor-pointer border border-orange-200 dark:border-orange-700"
+              title={`View source ${sourceNumber}`}
+            >
+              {sourceNumber}
+            </button>
+          ));
+          
+          // Add ellipsis button
+          const ellipsisButton = (
+            <button
+              key={`citation-ellipsis-${match!.index}`}
+              onClick={() => {
+                const newExpanded = new Set(expandedCitations);
+                if (isExpanded) {
+                  newExpanded.delete(citationGroupKey);
+                } else {
+                  newExpanded.add(citationGroupKey);
+                }
+                setExpandedCitations(newExpanded);
+              }}
+              className="inline-flex items-center px-1.5 py-0.5 ml-0.5 mr-0.5 text-xs font-medium bg-gray-100 hover:bg-gray-200 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 rounded transition-colors cursor-pointer border border-gray-300 dark:border-gray-600"
+              title={isExpanded ? "Show less" : `Show ${sourceNumbers.length - 2} more`}
+            >
+              {isExpanded ? '−' : '...'}
+            </button>
+          );
+          
+          parts.push(...citationButtons, ellipsisButton);
+        } else {
+          // Show all sources if 3 or fewer
+          const citationButtons = sourceNumbers.map((sourceNumber, index) => (
+            <button
+              key={`citation-${sourceNumber}-${match!.index}-${index}`}
+              onClick={() => handleSourceClick(sourceNumber)}
+              className="inline-flex items-center px-1.5 py-0.5 ml-0.5 mr-0.5 text-xs font-medium bg-orange-100 hover:bg-orange-200 dark:bg-orange-900 dark:hover:bg-orange-800 text-orange-800 dark:text-orange-200 rounded transition-colors cursor-pointer border border-orange-200 dark:border-orange-700"
+              title={`View source ${sourceNumber}`}
+            >
+              {sourceNumber}
+            </button>
+          ));
+          parts.push(...citationButtons);
+        }
       }
 
       lastIndex = match.index + match[0].length;
@@ -207,24 +249,84 @@ export const MarkdownRenderer: React.FC<MarkdownRendererProps> = React.memo(({
 
   // Pre-process markdown content to convert citations to HTML
   const preprocessMarkdownForCitations = (markdown: string): string => {
-    // Updated regex to handle both single citations [^1], multiple citations [^1, ^2, ^3], and [^Current Page]
-    const citationRegex = /\[\^([0-9, ]+|Current Page)\]/g;
+    // First, let's convert the markdown to handle individual citations
+    // This regex matches [^1], [^2], etc. individually
+    const singleCitationRegex = /\[\^(\d+|Current Page)\]/g;
+    let citationGroupId = 0;
     
-    return markdown.replace(citationRegex, (_, sourceNumbersStr) => {
-      // Handle [^Current Page] special case
-      if (sourceNumbersStr === 'Current Page') {
-        return `<button class="inline-flex items-center px-1.5 py-0.5 ml-0.5 mr-0.5 text-xs font-medium bg-blue-100 hover:bg-blue-200 dark:bg-blue-900 dark:hover:bg-blue-800 text-blue-800 dark:text-blue-200 rounded transition-colors cursor-pointer border border-blue-200 dark:border-blue-700" title="Current Page">Current Page</button>`;
+    // Process the text to group consecutive citations
+    let processed = markdown;
+    let result = '';
+    let lastIndex = 0;
+    let consecutiveCitations: number[] = [];
+    let isCollectingCitations = false;
+    
+    // Find all matches
+    const matches = Array.from(processed.matchAll(singleCitationRegex));
+    
+    matches.forEach((match, index) => {
+      const startPos = match.index!;
+      const endPos = startPos + match[0].length;
+      const sourceNum = match[1];
+      
+      // Add text before this citation
+      if (startPos > lastIndex) {
+        // If we have collected citations and now hit text, flush them
+        if (consecutiveCitations.length > 0) {
+          result += createCitationButtons(consecutiveCitations, citationGroupId++);
+          consecutiveCitations = [];
+        }
+        result += processed.slice(lastIndex, startPos);
       }
       
-      const sourceNumbers = sourceNumbersStr.split(',').map((num: string) => parseInt(num.trim())).filter((num: number) => !isNaN(num));
+      // Handle Current Page specially
+      if (sourceNum === 'Current Page') {
+        // Flush any collected citations first
+        if (consecutiveCitations.length > 0) {
+          result += createCitationButtons(consecutiveCitations, citationGroupId++);
+          consecutiveCitations = [];
+        }
+        result += `<button class="inline-flex items-center px-1.5 py-0.5 ml-0.5 mr-0.5 text-xs font-medium bg-blue-100 hover:bg-blue-200 dark:bg-blue-900 dark:hover:bg-blue-800 text-blue-800 dark:text-blue-200 rounded transition-colors cursor-pointer border border-blue-200 dark:border-blue-700" title="Current Page">Current Page</button>`;
+      } else {
+        // Collect numeric citations
+        consecutiveCitations.push(parseInt(sourceNum));
+      }
       
-      // Create buttons for each source number
-      const citationButtons = sourceNumbers.map((sourceNumber: number) => 
-        `<button class="inline-flex items-center px-1.5 py-0.5 ml-0.5 mr-0.5 text-xs font-medium bg-orange-100 hover:bg-orange-200 dark:bg-orange-900 dark:hover:bg-orange-800 text-orange-800 dark:text-orange-200 rounded transition-colors cursor-pointer border border-orange-200 dark:border-orange-700" title="View source ${sourceNumber}" data-source="${sourceNumber}">${sourceNumber}</button>`
+      lastIndex = endPos;
+    });
+    
+    // Add remaining text and flush any remaining citations
+    if (consecutiveCitations.length > 0) {
+      result += createCitationButtons(consecutiveCitations, citationGroupId++);
+    }
+    if (lastIndex < processed.length) {
+      result += processed.slice(lastIndex);
+    }
+    
+    return result;
+  };
+  
+  // Helper function to create citation buttons
+  const createCitationButtons = (sourceNumbers: number[], groupId: number): string => {
+    if (sourceNumbers.length <= 2) {
+      // Show all buttons if 2 or fewer
+      return sourceNumbers.map(num => 
+        `<button class="inline-flex items-center px-1.5 py-0.5 ml-0.5 mr-0.5 text-xs font-medium bg-orange-100 hover:bg-orange-200 dark:bg-orange-900 dark:hover:bg-orange-800 text-orange-800 dark:text-orange-200 rounded transition-colors cursor-pointer border border-orange-200 dark:border-orange-700" title="View source ${num}" data-source="${num}">${num}</button>`
+      ).join('');
+    } else {
+      // Show first 2 + ellipsis + hidden ones
+      const visibleButtons = sourceNumbers.slice(0, 2).map(num => 
+        `<button class="inline-flex items-center px-1.5 py-0.5 ml-0.5 mr-0.5 text-xs font-medium bg-orange-100 hover:bg-orange-200 dark:bg-orange-900 dark:hover:bg-orange-800 text-orange-800 dark:text-orange-200 rounded transition-colors cursor-pointer border border-orange-200 dark:border-orange-700" title="View source ${num}" data-source="${num}">${num}</button>`
       ).join('');
       
-      return citationButtons;
-    });
+      const hiddenButtons = sourceNumbers.slice(2).map(num => 
+        `<button class="citation-hidden-${groupId} inline-flex items-center px-1.5 py-0.5 ml-0.5 mr-0.5 text-xs font-medium bg-orange-100 hover:bg-orange-200 dark:bg-orange-900 dark:hover:bg-orange-800 text-orange-800 dark:text-orange-200 rounded transition-colors cursor-pointer border border-orange-200 dark:border-orange-700" style="display: none;" title="View source ${num}" data-source="${num}">${num}</button>`
+      ).join('');
+      
+      const ellipsisButton = `<button class="citation-ellipsis-${groupId} inline-flex items-center px-1.5 py-0.5 ml-0.5 mr-0.5 text-xs font-medium bg-gray-100 hover:bg-gray-200 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 rounded transition-colors cursor-pointer border border-gray-300 dark:border-gray-600" data-citation-group="${groupId}">...</button>`;
+      
+      return `<span class="citation-group" data-citation-index="${groupId}">${visibleButtons}${ellipsisButton}${hiddenButtons}</span>`;
+    }
   };
 
   // Process content and add cursor at the end if streaming
@@ -248,14 +350,54 @@ export const MarkdownRenderer: React.FC<MarkdownRendererProps> = React.memo(({
   // Custom components for react-markdown
   const components = {
     // Handle button clicks for citations
-    button: (props: JSX.IntrinsicElements['button'] & { node?: unknown; 'data-source'?: string }) => {
-      const { children, ...rest } = props;
+    button: (props: JSX.IntrinsicElements['button'] & { node?: unknown; 'data-source'?: string; 'data-citation-group'?: string; 'data-hidden-count'?: string; className?: string }) => {
+      const { children, className, ...rest } = props;
       const dataSource = props['data-source'];
+      const citationGroup = props['data-citation-group'];
       
+      // Handle ellipsis button clicks
+      if (className?.includes('citation-ellipsis') && citationGroup) {
+        const isExpanded = expandedCitations.has(citationGroup);
+        return (
+          <button
+            {...rest}
+            className={isExpanded 
+              ? className?.replace('rounded', 'rounded-full px-2') 
+              : className
+            }
+            onClick={() => {
+              const newExpanded = new Set(expandedCitations);
+              const shouldExpand = !isExpanded;
+              
+              if (shouldExpand) {
+                newExpanded.add(citationGroup);
+              } else {
+                newExpanded.delete(citationGroup);
+              }
+              
+              // Use a slight delay to ensure DOM is ready
+              setTimeout(() => {
+                const hiddenButtons = document.querySelectorAll(`.citation-hidden-${citationGroup}`);
+                
+                hiddenButtons.forEach(btn => {
+                  (btn as HTMLElement).style.display = shouldExpand ? 'inline-flex' : 'none';
+                });
+              }, 0);
+              
+              setExpandedCitations(newExpanded);
+            }}
+          >
+            {isExpanded ? '><' : children}
+          </button>
+        );
+      }
+      
+      // Handle source button clicks
       if (dataSource) {
         return (
           <button
             {...rest}
+            className={className}
             onClick={() => handleSourceClick(parseInt(dataSource))}
           >
             {children}
@@ -263,7 +405,7 @@ export const MarkdownRenderer: React.FC<MarkdownRendererProps> = React.memo(({
         );
       }
       
-      return <button {...rest}>{children}</button>;
+      return <button {...rest} className={className}>{children}</button>;
     },
     // Keep paragraph processing for cursor handling
     p: (props: JSX.IntrinsicElements['p'] & { node?: unknown }) => {
@@ -280,7 +422,7 @@ export const MarkdownRenderer: React.FC<MarkdownRendererProps> = React.memo(({
       );
     },
     // Handle text nodes that might contain cursor markers
-    text: (props: { children: unknown }) => {
+    text: (props: { children?: unknown }) => {
       const { children } = props;
       if (typeof children === 'string') {
         return processTextForCitations(children);
@@ -288,7 +430,7 @@ export const MarkdownRenderer: React.FC<MarkdownRendererProps> = React.memo(({
       return children;
     },
     // Add copy button to code blocks
-    pre: ({ children, ...props }: { children: React.ReactNode; [key: string]: unknown }) => {
+    pre: ({ children, ...props }: JSX.IntrinsicElements['pre'] & { node?: unknown }) => {
       const codeElement = React.Children.toArray(children).find(
         (child: unknown) => React.isValidElement(child) && child?.type === 'code'
       );
