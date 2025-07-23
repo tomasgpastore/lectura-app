@@ -80,7 +80,7 @@ class ChatControllerTest {
     @Test
     fun `should get messages successfully`() {
         every { jwtService.extractUserIdFromHeader(authHeader) } returns userId
-        every { chatService.getLast10(userId, courseId) } returns chatMessages
+        every { chatService.getMessages(userId, courseId) } returns chatMessages
 
         mockMvc.get("/chat/{courseId}", courseId) {
             header("Authorization", authHeader)
@@ -90,13 +90,13 @@ class ChatControllerTest {
             content { json(objectMapper.writeValueAsString(chatMessages)) }
         }
 
-        verify { chatService.getLast10(userId, courseId) }
+        verify { chatService.getMessages(userId, courseId) }
     }
 
     @Test
     fun `should get empty list when no messages exist`() {
         every { jwtService.extractUserIdFromHeader(authHeader) } returns userId
-        every { chatService.getLast10(userId, courseId) } returns emptyList()
+        every { chatService.getMessages(userId, courseId) } returns emptyList()
 
         mockMvc.get("/chat/{courseId}", courseId) {
             header("Authorization", authHeader)
@@ -106,7 +106,7 @@ class ChatControllerTest {
             content { json("[]") }
         }
 
-        verify { chatService.getLast10(userId, courseId) }
+        verify { chatService.getMessages(userId, courseId) }
     }
 
     @Test
@@ -156,7 +156,7 @@ class ChatControllerTest {
         val conversationMessages = listOf(userMessage, aiMessage)
         
         every { jwtService.extractUserIdFromHeader(authHeader) } returns userId
-        every { chatService.getLast10(userId, courseId) } returns conversationMessages
+        every { chatService.getMessages(userId, courseId) } returns conversationMessages
 
         mockMvc.get("/chat/{courseId}", courseId) {
             header("Authorization", authHeader)
@@ -166,7 +166,7 @@ class ChatControllerTest {
             content { json(objectMapper.writeValueAsString(conversationMessages)) }
         }
 
-        verify { chatService.getLast10(userId, courseId) }
+        verify { chatService.getMessages(userId, courseId) }
     }
 
     @Test
@@ -182,7 +182,7 @@ class ChatControllerTest {
         )
         
         every { jwtService.extractUserIdFromHeader(authHeader) } returns userId
-        every { chatService.getLast10(userId, courseId) } returns conversationFlow
+        every { chatService.getMessages(userId, courseId) } returns conversationFlow
 
         mockMvc.get("/chat/{courseId}", courseId) {
             header("Authorization", authHeader)
@@ -192,7 +192,7 @@ class ChatControllerTest {
             content { json(objectMapper.writeValueAsString(conversationFlow)) }
         }
 
-        verify { chatService.getLast10(userId, courseId) }
+        verify { chatService.getMessages(userId, courseId) }
     }
 
     @Test

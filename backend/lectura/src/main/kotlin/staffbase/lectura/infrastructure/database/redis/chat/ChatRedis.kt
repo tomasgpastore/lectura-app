@@ -26,7 +26,7 @@ class ChatRedis(
         val assistantJson = objectMapper.writeValueAsString(assistantMessage)
         redisTemplate.opsForList().leftPush(redisKey, assistantJson)
 
-        redisTemplate.opsForList().trim(redisKey, 0, 9) // keep last 10
+        redisTemplate.opsForList().trim(redisKey, 0, 99) // keep last 10
     }
 
     override fun getLastMessages(userId: String, courseId: String, limit: Int): List<ChatMessage> {
