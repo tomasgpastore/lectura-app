@@ -11,7 +11,7 @@ class ChatService(
         chatDAO.addMessage(userId, courseId, userMessage, assistantMessage)
     }
 
-    fun getLast10(userId: String, courseId: String): List<ChatMessage> {
+    fun getMessages(userId: String, courseId: String): List<ChatMessage> {
         return chatDAO.getLastMessages(userId, courseId)
     }
 

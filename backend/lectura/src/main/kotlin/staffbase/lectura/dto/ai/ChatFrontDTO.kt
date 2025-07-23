@@ -5,5 +5,6 @@ import jakarta.validation.constraints.NotBlank
 data class ChatFrontDTO(
     @field:NotBlank val courseId: String,
     @field:NotBlank val userPrompt: String,
-    val snapshot: String? = null
+    val snapshot: String? = null,
+    val slidePriority: List<String>? = null
 )

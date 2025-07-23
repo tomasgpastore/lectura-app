@@ -97,16 +97,16 @@ class AiChatIntegrationTest {
                 delay(3000) // Shorter wait time since Python service responds quickly
                 
                 // Check immediately after API call
-                val immediateMessages = chatService.getLast10(testUserId, testCourseId)
+                val immediateMessages = chatService.getMessages(testUserId, testCourseId)
                 println("📋 Immediate messages found: ${immediateMessages.size}")
                 
                 // Wait a bit more and check again
                 delay(2000)
-                val delayedMessages = chatService.getLast10(testUserId, testCourseId)
+                val delayedMessages = chatService.getMessages(testUserId, testCourseId)
                 println("📋 Delayed messages found: ${delayedMessages.size}")
 
                 // Verify that the conversation was saved to Redis (in-memory for tests)
-                val savedMessages = chatService.getLast10(testUserId, testCourseId)
+                val savedMessages = chatService.getMessages(testUserId, testCourseId)
                 
                 println("📊 Verifying stored messages...")
                 println("Messages found: ${savedMessages.size}")
@@ -179,7 +179,7 @@ class AiChatIntegrationTest {
         chatService.addMessage(testUserId, testCourseId2, aiMessage)
         
         // Retrieve and verify
-        val messages = chatService.getLast10(testUserId, testCourseId2)
+        val messages = chatService.getMessages(testUserId, testCourseId2)
         
         assertEquals(2, messages.size, "Should have 2 messages")
         assertTrue(messages.any { it.user == "Test user prompt for Redis" }, "Should contain user message")
@@ -187,7 +187,7 @@ class AiChatIntegrationTest {
         
         // Test clearing
         chatService.clearChat(testUserId, testCourseId2)
-        val emptyMessages = chatService.getLast10(testUserId, testCourseId2)
+        val emptyMessages = chatService.getMessages(testUserId, testCourseId2)
         assertEquals(0, emptyMessages.size, "Should have no messages after clear")
         
         println("✅ Redis storage functionality verified!")
@@ -220,7 +220,7 @@ class AiChatIntegrationTest {
                 delay(5000)
                 
                 // Check messages in Redis
-                val savedMessages = chatService.getLast10(testUserId, testCourseId)
+                val savedMessages = chatService.getMessages(testUserId, testCourseId)
                 println("📊 Messages found in Redis: ${savedMessages.size}")
                 
                 savedMessages.forEach { message ->

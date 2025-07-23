@@ -1,6 +1,5 @@
 package staffbase.lectura.ai.chat
 
-import org.springframework.http.HttpStatus
 import org.springframework.http.ResponseEntity
 import org.springframework.web.bind.annotation.*
 import staffbase.lectura.auth.JwtService
@@ -29,7 +28,7 @@ class ChatController(
         @PathVariable courseId: String
     ): ResponseEntity<List<ChatMessage>> {
         val userId = jwtService.extractUserIdFromHeader(authHeader)
-        val messages = chatService.getLast10(userId, courseId)
+        val messages = chatService.getMessages(userId, courseId)
         return ResponseEntity.ok(messages)
     }
 

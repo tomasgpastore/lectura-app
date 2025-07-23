@@ -197,7 +197,8 @@ class AiChatService(
         userId: String,
         courseId: String,
         userPrompt: String,
-        snapshot: String? = null
+        snapshot: String? = null,
+        slidePriority: List<String>? = null
     ): ChatResponseDTO {
         // Build the outbound request payload
         val request = ChatOutboundDTO(
@@ -225,12 +226,15 @@ class AiChatService(
         // Read the full JSON response
         val responseJson = connection.inputStream.bufferedReader().use { it.readText() }
 
+        val aiAnswer = objectMapper.readValue(responseJson, ChatResponseDTO::class.java)
+
+        saveConversationToRedis(userId, courseId, userPrompt, aiAnswer.response, aiAnswer.data)
         // Deserialize into ChatResponseDTO and return
-        return objectMapper.readValue(responseJson, ChatResponseDTO::class.java)
+        return aiAnswer
     }
 
     
-    private fun saveConversationToRedis(userId: String, courseId: String, userPrompt: String, aiResponse: String) {
+    private fun saveConversationToRedis(userId: String, courseId: String, userPrompt: String, aiResponse: String, sources: List<Source>) {
         try {
             // Save user message
             val userMessage = ChatMessage(
@@ -243,6 +247,7 @@ class AiChatService(
             val assistantMessage = ChatMessage(
                 role = "assistant",
                 content = aiResponse,
+                sources = sources,
                 timestamp = LocalDateTime.now()
             )
             chatService.addMessage(userId, courseId, userMessage, assistantMessage)
