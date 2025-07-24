@@ -7,19 +7,14 @@ import org.springframework.http.MediaType
 import org.springframework.stereotype.Service
 import org.springframework.web.client.RestTemplate
 import org.springframework.web.client.HttpStatusCodeException
-import org.springframework.web.servlet.mvc.method.annotation.SseEmitter
 import staffbase.lectura.ai.chat.ChatMessage
 import staffbase.lectura.ai.chat.ChatService
 import staffbase.lectura.dto.ai.ChatOutboundDTO
 import staffbase.lectura.dto.ai.ChatResponseDTO
-import java.io.BufferedReader
-import java.io.InputStreamReader
 import java.net.HttpURLConnection
-import java.util.concurrent.CompletableFuture
 import com.fasterxml.jackson.databind.ObjectMapper
 import java.net.URI
 import java.time.LocalDateTime
-import java.util.Date
 
 data class SlideProcessingRequest(
     val courseId: String,
@@ -198,7 +193,7 @@ class AiChatService(
         courseId: String,
         userPrompt: String,
         snapshot: String? = null,
-        slidePriority: List<String>? = null
+        priorityDocuments: List<String>? = null
     ): ChatResponseDTO {
         // Build the outbound request payload
         val request = ChatOutboundDTO(
