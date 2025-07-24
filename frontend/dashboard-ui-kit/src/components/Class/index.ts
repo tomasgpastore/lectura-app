@@ -1,7 +1,6 @@
 export { FileManager } from './FileManager';
 export { DocumentPreview } from './DocumentPreview';
 export { ChatInterface } from './ChatInterface';
-export { ChatInterfaceGrouped } from './ChatInterfaceGrouped';
 export { MarkdownRenderer } from './MarkdownRenderer';
 export { RemoveDocumentModal } from './RemoveDocumentModal';
 export { EditDocumentModal } from './EditDocumentModal';
