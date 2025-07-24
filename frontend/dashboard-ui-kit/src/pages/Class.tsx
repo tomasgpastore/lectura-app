@@ -23,6 +23,13 @@ export const Class: React.FC = () => {
   const queryClient = useQueryClient();
   const [isFileManagerCollapsed, setIsFileManagerCollapsed] = useState(false);
   const [selectedTextForChat, setSelectedTextForChat] = useState<string>('');
+  const [chatIndicatorItems, setChatIndicatorItems] = useState<Array<{
+    id: string;
+    type: 'current-page' | 'document';
+    name: string;
+    removable: boolean;
+  }>>([]);
+  const [chatInputValue, setChatInputValue] = useState<string>('');
 
 
   // Fetch course data with better caching while ensuring data loads
@@ -47,10 +54,24 @@ export const Class: React.FC = () => {
     gcTime: 15 * 60 * 1000, // Keep in cache for 15 minutes
     refetchOnWindowFocus: false,
   });
+  
+  // Fetch all courses for the /cd command
+  const { data: allCourses = [] } = useQuery({
+    queryKey: ['courses'],
+    queryFn: () => courseApi.getAll(),
+    staleTime: 5 * 60 * 1000,
+    gcTime: 30 * 60 * 1000,
+    refetchOnWindowFocus: false,
+  });
 
   // Custom hooks for functionality
   const documentManager = useDocumentManager(id, allSlides);
-  const chatManager = useChatManager(id, documentManager.selectedDocument);
+  // Extract document IDs from indicator items (only document type, not current-page)
+  const priorityDocumentIds = chatIndicatorItems
+    .filter(item => item.type === 'document')
+    .map(item => item.id);
+    
+  const chatManager = useChatManager(id, documentManager.selectedDocument, priorityDocumentIds);
 
 
   // Handle opening file from source citation
@@ -125,6 +146,7 @@ export const Class: React.FC = () => {
       // Clear both inputs
       chatManager.handleInputChange('');
       clearSelectedText();
+      setChatInputValue('');
     }
   };
 
@@ -263,10 +285,9 @@ export const Class: React.FC = () => {
               courseId={id}
             >
               <MemoizedChatInterface
+                key="chat-interface"
                 messages={chatManager.messages}
                 isAiLoading={chatManager.isAiLoading}
-                inputMessage={chatManager.inputMessage}
-                onInputChange={chatManager.handleInputChange}
                 onSubmit={(e) => handleCombinedSubmit(e, chatManager.inputMessage, selectedTextForChat)}
                 onClearChat={chatManager.handleClearChat}
                 streamingMessageIds={chatManager.streamingMessageIds}
@@ -274,6 +295,126 @@ export const Class: React.FC = () => {
                 slides={allSlides}
                 selectedTextForChat={selectedTextForChat}
                 onClearSelectedText={clearSelectedText}
+                courses={allCourses}
+                isPdfPreviewOpen={true}
+                currentPdfPage={documentManager.currentPage}
+                indicatorItems={chatIndicatorItems}
+                onIndicatorItemsChange={setChatIndicatorItems}
+                inputValue={chatInputValue}
+                onInputValueChange={setChatInputValue}
+                onOpenDocument={(documentId) => {
+                  const doc = documentManager.documents.find(d => d.id === documentId);
+                  if (doc) {
+                    documentManager.handlePreviewDocument(doc);
+                  }
+                }}
+                onRemoveDocument={(documentId) => {
+                  const doc = documentManager.documents.find(d => d.id === documentId);
+                  if (doc) {
+                    documentManager.handleDeleteDocumentDirect(doc);
+                  }
+                }}
+                onRenameDocument={async (documentId, newName) => {
+                  const doc = documentManager.documents.find(d => d.id === documentId);
+                  if (!doc) return;
+                  
+                  // Get the file extension from the original name
+                  const fileExtension = doc.name.split('.').pop() || '';
+                  
+                  // Add the extension to the new name
+                  const fullNewName = fileExtension ? `${newName}.${fileExtension}` : newName;
+                  
+                  // Check for duplicate names first
+                  const existingDoc = documentManager.documents.find(
+                    d => d.id !== doc.id && d.name.toLowerCase() === fullNewName.toLowerCase()
+                  );
+                  
+                  if (existingDoc) {
+                    alert(`A file with the name "${fullNewName}" already exists`);
+                    return;
+                  }
+                  
+                  try {
+                    // Directly call the API to rename
+                    await slideApi.update(id!, doc.id, { originalFileName: fullNewName });
+                    
+                    // Refresh the documents list
+                    queryClient.invalidateQueries({ queryKey: ['slides', id] });
+                    
+                    // Update selected document if it's the one being renamed
+                    if (documentManager.selectedDocument?.id === doc.id) {
+                      documentManager.setSelectedDocument({ 
+                        ...documentManager.selectedDocument, 
+                        name: fullNewName 
+                      });
+                    }
+                  } catch (error: any) {
+                    alert(error.message || 'Failed to rename document');
+                  }
+                }}
+                onFilesUploaded={async (files: File[]) => {
+                  // Check for files that already exist
+                  const existingFileNames = documentManager.documents.map(doc => ({ 
+                    name: doc.name.toLowerCase(), 
+                    doc 
+                  }));
+                  
+                  const filesToProcess = files.map(file => {
+                    const existing = existingFileNames.find(item => item.name === file.name.toLowerCase());
+                    return { file, existingDoc: existing?.doc };
+                  });
+                  
+                  const newFiles = filesToProcess.filter(item => !item.existingDoc).map(item => item.file);
+                  
+                  // Upload only new files (without showing duplicate error)
+                  if (newFiles.length > 0) {
+                    await documentManager.handleFilesUploaded(newFiles);
+                    
+                    // Wait for the query to be invalidated and refetched
+                    await queryClient.invalidateQueries({ queryKey: ['slides', id] });
+                    
+                    // Wait a bit more for the UI to update
+                    await new Promise(resolve => setTimeout(resolve, 1000));
+                  }
+                  
+                  // Re-fetch documents after upload
+                  const updatedSlides = await slideApi.getAll(id!);
+                  
+                  // Add all files to priority list
+                  for (const { file, existingDoc } of filesToProcess) {
+                    let doc = existingDoc;
+                    
+                    // If it was a new file, find it in the updated slides
+                    if (!doc && updatedSlides) {
+                      const matchingSlide = updatedSlides.find(slide => 
+                        slide.originalFileName.toLowerCase() === file.name.toLowerCase()
+                      );
+                      if (matchingSlide) {
+                        doc = {
+                          id: matchingSlide.id,
+                          name: matchingSlide.originalFileName,
+                          type: matchingSlide.contentType,
+                          size: matchingSlide.fileSize,
+                          uploadedAt: new Date(matchingSlide.uploadTimestamp)
+                        };
+                      }
+                    }
+                    
+                    if (doc) {
+                      // Check if not already in indicator items
+                      const currentItems = chatIndicatorItems;
+                      if (!currentItems.some(item => item.id === doc.id)) {
+                        const newItem = {
+                          id: doc.id,
+                          type: 'document' as const,
+                          name: doc.name,
+                          removable: true
+                        };
+                        setChatIndicatorItems([...currentItems, newItem]);
+                      }
+                    }
+                  }
+                }}
               />
             </DocumentPreview>
           </div>
@@ -281,12 +422,11 @@ export const Class: React.FC = () => {
 
         {/* Chat Only Section - when no document selected */}
         {!documentManager.selectedDocument && (
-          <div className="flex-1 p-2 h-full">
+          <div className="flex-1 h-full pr-2">
             <MemoizedChatInterface
+              key="chat-interface"
               messages={chatManager.messages}
               isAiLoading={chatManager.isAiLoading}
-              inputMessage={chatManager.inputMessage}
-              onInputChange={chatManager.handleInputChange}
               onSubmit={(e) => handleCombinedSubmit(e, chatManager.inputMessage, selectedTextForChat)}
               onClearChat={chatManager.handleClearChat}
               streamingMessageIds={chatManager.streamingMessageIds}
@@ -294,6 +434,126 @@ export const Class: React.FC = () => {
               slides={allSlides}
               selectedTextForChat={selectedTextForChat}
               onClearSelectedText={clearSelectedText}
+              courses={allCourses}
+              isPdfPreviewOpen={false}
+              currentPdfPage={undefined}
+              indicatorItems={chatIndicatorItems}
+              onIndicatorItemsChange={setChatIndicatorItems}
+              inputValue={chatInputValue}
+              onInputValueChange={setChatInputValue}
+              onOpenDocument={(documentId) => {
+                const doc = documentManager.documents.find(d => d.id === documentId);
+                if (doc) {
+                  documentManager.handlePreviewDocument(doc);
+                }
+              }}
+              onRemoveDocument={(documentId) => {
+                const doc = documentManager.documents.find(d => d.id === documentId);
+                if (doc) {
+                  documentManager.handleDeleteDocumentDirect(doc);
+                }
+              }}
+              onRenameDocument={async (documentId, newName) => {
+                const doc = documentManager.documents.find(d => d.id === documentId);
+                if (!doc) return;
+                
+                // Get the file extension from the original name
+                const fileExtension = doc.name.split('.').pop() || '';
+                
+                // Add the extension to the new name
+                const fullNewName = fileExtension ? `${newName}.${fileExtension}` : newName;
+                
+                // Check for duplicate names first
+                const existingDoc = documentManager.documents.find(
+                  d => d.id !== doc.id && d.name.toLowerCase() === fullNewName.toLowerCase()
+                );
+                
+                if (existingDoc) {
+                  alert(`A file with the name "${fullNewName}" already exists`);
+                  return;
+                }
+                
+                try {
+                  // Directly call the API to rename
+                  await slideApi.update(id!, doc.id, { originalFileName: fullNewName });
+                  
+                  // Refresh the documents list
+                  queryClient.invalidateQueries({ queryKey: ['slides', id] });
+                  
+                  // Update selected document if it's the one being renamed
+                  if (documentManager.selectedDocument?.id === doc.id) {
+                    documentManager.setSelectedDocument({ 
+                      ...documentManager.selectedDocument, 
+                      name: fullNewName 
+                    });
+                  }
+                } catch (error: any) {
+                  alert(error.message || 'Failed to rename document');
+                }
+              }}
+              onFilesUploaded={async (files: File[]) => {
+                // Check for files that already exist
+                const existingFileNames = documentManager.documents.map(doc => ({ 
+                  name: doc.name.toLowerCase(), 
+                  doc 
+                }));
+                
+                const filesToProcess = files.map(file => {
+                  const existing = existingFileNames.find(item => item.name === file.name.toLowerCase());
+                  return { file, existingDoc: existing?.doc };
+                });
+                
+                const newFiles = filesToProcess.filter(item => !item.existingDoc).map(item => item.file);
+                
+                // Upload only new files (without showing duplicate error)
+                if (newFiles.length > 0) {
+                  await documentManager.handleFilesUploaded(newFiles);
+                  
+                  // Wait for the query to be invalidated and refetched
+                  await queryClient.invalidateQueries({ queryKey: ['slides', id] });
+                  
+                  // Wait a bit more for the UI to update
+                  await new Promise(resolve => setTimeout(resolve, 1000));
+                }
+                
+                // Re-fetch documents after upload
+                const updatedSlides = await slideApi.getAll(id!);
+                
+                // Add all files to priority list
+                for (const { file, existingDoc } of filesToProcess) {
+                  let doc = existingDoc;
+                  
+                  // If it was a new file, find it in the updated slides
+                  if (!doc && updatedSlides) {
+                    const matchingSlide = updatedSlides.find(slide => 
+                      slide.originalFileName.toLowerCase() === file.name.toLowerCase()
+                    );
+                    if (matchingSlide) {
+                      doc = {
+                        id: matchingSlide.id,
+                        name: matchingSlide.originalFileName,
+                        type: matchingSlide.contentType,
+                        size: matchingSlide.fileSize,
+                        uploadedAt: new Date(matchingSlide.uploadTimestamp)
+                      };
+                    }
+                  }
+                  
+                  if (doc) {
+                    // Check if not already in indicator items
+                    const currentItems = chatIndicatorItems;
+                    if (!currentItems.some(item => item.id === doc.id)) {
+                      const newItem = {
+                        id: doc.id,
+                        type: 'document' as const,
+                        name: doc.name,
+                        removable: true
+                      };
+                      setChatIndicatorItems([...currentItems, newItem]);
+                    }
+                  }
+                }
+              }}
             />
           </div>
         )}
@@ -313,6 +573,7 @@ export const Class: React.FC = () => {
         onClose={documentManager.handleCloseEditModal}
         onUpdateDocument={documentManager.handleUpdateDocument}
         document={documentManager.documentToEdit}
+        initialName={documentManager.editInitialName}
       />
 
       {/* Delete Error Modal */}

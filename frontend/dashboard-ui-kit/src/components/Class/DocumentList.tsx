@@ -1,5 +1,5 @@
 import React, { useState, useCallback } from 'react';
-import { FileText, MoreVertical, Edit3, Trash2, Loader2 } from 'lucide-react';
+import { MoreVertical, Edit3, Trash2, Loader2 } from 'lucide-react';
 import { Document } from '../../types';
 import { formatFileSize } from '../../utils/class/documentUtils';
 
@@ -52,7 +52,7 @@ export const DocumentList: React.FC<DocumentListProps> = React.memo(({
   if (isLoading) {
     return (
       <div className="text-center py-8">
-        <Loader2 className="w-12 h-12 text-orange-600 dark:text-orange-400 mx-auto mb-3 animate-spin" />
+        <Loader2 className="w-12 h-12 text-[#F97316] dark:text-[#F97316]/80 mx-auto mb-3 animate-spin" />
         <p className="text-sm text-gray-500 dark:text-gray-400">
           Loading documents...
         </p>
@@ -63,7 +63,16 @@ export const DocumentList: React.FC<DocumentListProps> = React.memo(({
   if (documents.length === 0) {
     return (
       <div className="text-center py-8">
-        <FileText className="w-12 h-12 text-gray-400 mx-auto mb-3" />
+        <img 
+          src="/file-upload-500.png" 
+          alt="Upload files" 
+          className="w-12 h-12 mx-auto mb-3 dark:hidden" 
+        />
+        <img 
+          src="/file-upload-400.png" 
+          alt="Upload files" 
+          className="w-12 h-12 mx-auto mb-3 hidden dark:block" 
+        />
         <p className="text-sm text-gray-500 dark:text-gray-400">
           No documents uploaded yet
         </p>
@@ -87,9 +96,9 @@ export const DocumentList: React.FC<DocumentListProps> = React.memo(({
             <div className="flex items-start space-x-3 flex-1 min-w-0">
               <div className="w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0">
                 {doc.isLoading ? (
-                  <Loader2 className="w-5 h-5 text-orange-600 dark:text-orange-400 animate-spin" />
+                  <Loader2 className="w-5 h-5 text-[#F97316] dark:text-[#F97316]/80 animate-spin" />
                 ) : (
-                  <FileText className="w-5 h-5 text-orange-600 dark:text-orange-400" />
+                  <img src="/pdf-icon.png" alt="PDF" className="w-5 h-5" />
                 )}
               </div>
               <div className="min-w-0 flex-1">

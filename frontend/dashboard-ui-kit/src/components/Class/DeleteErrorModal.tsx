@@ -39,7 +39,7 @@ export const DeleteErrorModal: React.FC<DeleteErrorModalProps> = ({
 
           <button
             onClick={onClose}
-            className="w-full py-3 px-4 bg-gradient-to-r from-orange-600 to-red-600 hover:from-orange-700 hover:to-red-700 text-white rounded-xl font-semibold transition-all duration-300 shadow-lg hover:shadow-xl"
+            className="w-full py-3 px-4 bg-gradient-to-r from-[#F97316] to-[#EF4444] hover:from-[#F97316]/90 hover:to-[#EF4444]/90 text-white rounded-xl font-semibold transition-all duration-300 shadow-lg hover:shadow-xl"
           >
             OK
           </button>

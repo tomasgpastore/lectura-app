@@ -1,18 +1,14 @@
 import React, { useRef, memo, useCallback, useImperativeHandle, forwardRef, useState, useEffect } from 'react';
-import { ArrowUp, Plus } from 'lucide-react';
+import { ArrowUp } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 import { TextCloudPopup } from './TextCloudPopup';
 import { CommandSuggestions } from './CommandSuggestions';
 import { FileSuggestions } from './FileSuggestions';
 import { ClassSuggestions } from './ClassSuggestions';
-import { DocumentSuggestions } from './DocumentSuggestions';
 import { IndicatorsList, IndicatorItem } from './IndicatorsList';
+import { useTheme } from '../../contexts/ThemeContext';
+import { useAuth } from '../../contexts/AuthContext';
 import { Course } from '../../types';
-import { useCommands, useTextInputHandler, useKeyboardNavigation, useCommandHistory } from './commands';
-
-interface Document {
-  id: string;
-  name: string;
-}
 
 interface ChatInputProps {
   onSubmit: (message: string) => void;
@@ -28,11 +24,6 @@ interface ChatInputProps {
   value?: string;
   onValueChange?: (value: string) => void;
   courses?: Course[];
-  documents?: Document[];
-  onOpenDocument?: (documentId: string) => void;
-  onRemoveDocument?: (documentId: string) => void;
-  onRenameDocument?: (documentId: string, newName: string) => void;
-  onFilesUploaded?: (files: File[]) => void;
 }
 
 export interface ChatInputHandle {
@@ -40,7 +31,13 @@ export interface ChatInputHandle {
   clear: () => void;
 }
 
-interface FileItem {
+interface Command {
+  name: string;
+  description: string;
+  action: () => void;
+}
+
+interface File {
   id: string;
   name: string;
   type: string;
@@ -60,25 +57,25 @@ export const ChatInputOptimized = memo(forwardRef<ChatInputHandle, ChatInputProp
   value: externalValue,
   onValueChange,
   courses = [],
-  documents = [],
-  onOpenDocument,
-  onRemoveDocument,
-  onRenameDocument,
-  onFilesUploaded,
 }, ref) => {
+  const { isDark, toggleTheme } = useTheme();
+  const { logout } = useAuth();
+  const navigate = useNavigate();
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const lastHeightRef = useRef<number>(0);
-  const fileInputRef = useRef<HTMLInputElement>(null);
-  
   // Use external value if provided, otherwise manage locally
   const [localValue, setLocalValue] = useState('');
   const internalValue = externalValue ?? localValue;
   const setInternalValue = onValueChange ?? setLocalValue;
-  
-  // File suggestions state
+  const [showCommands, setShowCommands] = useState(false);
+  const [selectedCommandIndex, setSelectedCommandIndex] = useState(0);
+  const [commandFilter, setCommandFilter] = useState('');
   const [showFiles, setShowFiles] = useState(false);
   const [selectedFileIndex, setSelectedFileIndex] = useState(0);
   const [fileFilter, setFileFilter] = useState('');
+  const [showClassSuggestions, setShowClassSuggestions] = useState(false);
+  const [selectedClassIndex, setSelectedClassIndex] = useState(0);
+  const [classFilter, setClassFilter] = useState('');
   
   // Use external indicator items if provided, otherwise manage locally
   const [localIndicatorItems, setLocalIndicatorItems] = useState<IndicatorItem[]>([]);
@@ -95,54 +92,96 @@ export const ChatInputOptimized = memo(forwardRef<ChatInputHandle, ChatInputProp
     }
   }, []);
 
-  // Use command history hook
-  const { addToHistory, navigateHistory, resetHistoryNavigation } = useCommandHistory();
+  // Available commands
+  const allCommands: Command[] = [
+    {
+      name: '/clear',
+      description: 'Clear the chat history',
+      action: () => {
+        if (onClearChat) {
+          onClearChat();
+          setInternalValue('');
+          setShowCommands(false);
+          if (textareaRef.current) {
+            textareaRef.current.value = '';
+            resetHeight();
+          }
+        }
+      }
+    },
+    {
+      name: '/theme',
+      description: 'Change theme (usage: /theme light or /theme dark)',
+      action: () => {
+        // This will be handled in the command execution logic
+        setShowCommands(false);
+      }
+    },
+    {
+      name: '/logout',
+      description: 'Log out of your account',
+      action: async () => {
+        await logout();
+        navigate('/login');
+      }
+    },
+    {
+      name: '/cd',
+      description: 'Change to a different class (usage: /cd [class name])',
+      action: () => {
+        // This will be handled in the command execution logic
+        setShowCommands(false);
+      }
+    }
+  ];
 
-  // Use commands hook
-  const {
-    showCommands,
-    setShowCommands,
-    selectedCommandIndex,
-    setSelectedCommandIndex,
-    commandFilter,
-    setCommandFilter,
-    showClassSuggestions,
-    setShowClassSuggestions,
-    selectedClassIndex,
-    setSelectedClassIndex,
-    classFilter,
-    setClassFilter,
-    showDocumentSuggestions,
-    setShowDocumentSuggestions,
-    selectedDocumentIndex,
-    setSelectedDocumentIndex,
-    documentFilter,
-    setDocumentFilter,
-    allCommands,
-    filteredCommands,
-    filteredCourses,
-    filteredDocuments,
-    selectCommand,
-    selectClass,
-    selectDocument,
-    executeCommandWithParameter,
-  } = useCommands({
-    onClearChat,
-    courses,
-    documents,
-    onOpenDocument,
-    onRemoveDocument,
-    onRenameDocument,
-    setInternalValue,
-    textareaRef,
-    resetHeight,
-    addToHistory,
-  });
+  // Filter commands based on input
+  const filteredCommands = allCommands.filter(cmd => 
+    cmd.name.toLowerCase().startsWith(commandFilter.toLowerCase())
+  );
 
   // Filter files based on input
   const filteredFiles = files.filter(file => 
     file.name.toLowerCase().includes(fileFilter.toLowerCase())
   );
+  
+  // Filter courses based on input
+  const filteredCourses = courses.filter(course => 
+    course.name.toLowerCase().includes(classFilter.toLowerCase()) ||
+    course.code.toLowerCase().includes(classFilter.toLowerCase())
+  );
+
+  // Handle command selection
+  const selectCommand = useCallback((command: Command) => {
+    if (command.name === '/theme') {
+      // Don't execute immediately, let user type the parameter
+      setInternalValue('/theme ');
+      setShowCommands(false);
+      setCommandFilter('');
+      setSelectedCommandIndex(0);
+      if (textareaRef.current) {
+        textareaRef.current.value = '/theme ';
+        textareaRef.current.focus();
+      }
+    } else if (command.name === '/cd') {
+      // Don't execute immediately, show class suggestions
+      setInternalValue('/cd ');
+      setShowCommands(false);
+      setCommandFilter('');
+      setSelectedCommandIndex(0);
+      setShowClassSuggestions(true);
+      setClassFilter('');
+      if (textareaRef.current) {
+        textareaRef.current.value = '/cd ';
+        textareaRef.current.focus();
+      }
+    } else {
+      command.action();
+      setShowCommands(false);
+      setCommandFilter('');
+      setSelectedCommandIndex(0);
+    }
+  }, [setInternalValue]);
 
   // Handle PDF preview state changes
   useEffect(() => {
@@ -197,8 +236,22 @@ export const ChatInputOptimized = memo(forwardRef<ChatInputHandle, ChatInputProp
     requestAnimationFrame(adjustHeight);
   }, [adjustHeight]);
 
+  // Handle class selection
+  const selectClass = useCallback((course: Course) => {
+    // Navigate directly instead of simulating enter key
+    navigate(`/class/${course.id}`);
+    setInternalValue('');
+    setShowClassSuggestions(false);
+    setClassFilter('');
+    setSelectedClassIndex(0);
+    if (textareaRef.current) {
+      textareaRef.current.value = '';
+      resetHeight();
+    }
+  }, [navigate, resetHeight]);
+
   // Handle file selection
-  const selectFile = useCallback((file: FileItem) => {
+  const selectFile = useCallback((file: File) => {
     // Add to indicator items if not already there
     const currentItems = indicatorItems;
     
@@ -247,7 +300,7 @@ export const ChatInputOptimized = memo(forwardRef<ChatInputHandle, ChatInputProp
         resetHeight();
       }
     }
-  }), [resetHeight, setInternalValue]);
+  }), [resetHeight]);
 
   const handleCloseCloud = useCallback(() => {
     onClearSelectedText?.();
@@ -261,98 +314,147 @@ export const ChatInputOptimized = memo(forwardRef<ChatInputHandle, ChatInputProp
     }
   }, [internalValue, handleInput]);
 
-  // Use text input handler
-  const { handleTextChange: handleTextChangeLogic } = useTextInputHandler({
-    setShowFiles,
-    setFileFilter,
-    setSelectedFileIndex,
-    setShowCommands,
-    setCommandFilter,
-    setShowClassSuggestions,
-    setClassFilter,
-    setSelectedClassIndex,
-    setShowDocumentSuggestions,
-    setDocumentFilter,
-    setSelectedDocumentIndex,
-  });
-
   // Handle text change
   const handleTextChange = useCallback((e: React.ChangeEvent<HTMLTextAreaElement>) => {
     const value = e.target.value;
     setInternalValue(value);
-    
-    // Reset history navigation when user types
-    resetHistoryNavigation();
-    
+
     // Get the current cursor position
     const cursorPosition = e.target.selectionStart;
-    handleTextChangeLogic(value, cursorPosition);
-  }, [setInternalValue, handleTextChangeLogic, resetHistoryNavigation]);
-
-  // Use keyboard navigation
-  const { handleKeyDown: handleKeyboardNavigation } = useKeyboardNavigation({
-    showFiles,
-    filteredFiles,
-    selectedFileIndex,
-    setSelectedFileIndex,
-    selectFile,
-    setShowFiles,
-    setFileFilter,
-    showCommands,
-    filteredCommands,
-    selectedCommandIndex,
-    setSelectedCommandIndex,
-    selectCommand,
-    setShowCommands,
-    setCommandFilter,
-    setInternalValue,
-    textareaRef,
-    showClassSuggestions,
-    filteredCourses,
-    selectedClassIndex,
-    setSelectedClassIndex,
-    selectClass,
-    setShowClassSuggestions,
-    setClassFilter,
-    showDocumentSuggestions,
-    filteredDocuments,
-    selectedDocumentIndex,
-    setSelectedDocumentIndex,
-    selectDocument,
-    setShowDocumentSuggestions,
-    setDocumentFilter,
-  });
+    const textBeforeCursor = value.substring(0, cursorPosition);
+    
+    // Check for @ mentions
+    const lastAtIndex = textBeforeCursor.lastIndexOf('@');
+    const lastSpaceIndex = textBeforeCursor.lastIndexOf(' ');
+    const lastNewlineIndex = textBeforeCursor.lastIndexOf('\n');
+    const lastBreakIndex = Math.max(lastSpaceIndex, lastNewlineIndex);
+    
+    if (lastAtIndex > lastBreakIndex && lastAtIndex !== -1) {
+      // User is typing a file mention
+      const filterText = textBeforeCursor.substring(lastAtIndex + 1);
+      setShowFiles(true);
+      setFileFilter(filterText);
+      setSelectedFileIndex(0);
+      setShowCommands(false);
+      setCommandFilter('');
+    } else if (value.startsWith('/cd ') && value.length > 4) {
+      // User is typing class name after /cd command
+      const classFilterText = value.substring(4).trim();
+      setShowClassSuggestions(true);
+      setClassFilter(classFilterText);
+      setSelectedClassIndex(0);
+      setShowCommands(false);
+      setShowFiles(false);
+    } else if (value.startsWith('/')) {
+      // Check if user is typing a command
+      setShowCommands(true);
+      setCommandFilter(value);
+      setSelectedCommandIndex(0);
+      setShowFiles(false);
+      setFileFilter('');
+      setShowClassSuggestions(false);
+    } else {
+      setShowCommands(false);
+      setCommandFilter('');
+      setShowFiles(false);
+      setFileFilter('');
+      setShowClassSuggestions(false);
+    }
+  }, []);
 
   const handleKeyDown = useCallback((e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    // Handle command history navigation when input is empty or starts with "/"
-    if ((internalValue.trim() === '' || internalValue.startsWith('/')) && (e.key === 'ArrowUp' || e.key === 'ArrowDown')) {
-      // Don't navigate history if any suggestions are showing
-      if (showFiles || showCommands || showClassSuggestions || showDocumentSuggestions) {
-        // Let normal keyboard navigation handle it
-      } else {
+    // Handle file suggestions navigation
+    if (showFiles && filteredFiles.length > 0) {
+      if (e.key === 'ArrowDown') {
         e.preventDefault();
-        const historyCommand = navigateHistory(e.key === 'ArrowUp' ? 'up' : 'down', internalValue);
-        if (historyCommand !== null) {
-          setInternalValue(historyCommand);
+        setSelectedFileIndex((prev) => (prev + 1) % filteredFiles.length);
+        return;
+      } else if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        setSelectedFileIndex((prev) => (prev - 1 + filteredFiles.length) % filteredFiles.length);
+        return;
+      } else if (e.key === 'Tab') {
+        e.preventDefault();
+        const selectedFile = filteredFiles[selectedFileIndex];
+        if (selectedFile) {
+          selectFile(selectedFile);
+        }
+        return;
+      } else if (e.key === 'Enter') {
+        e.preventDefault();
+        const selectedFile = filteredFiles[selectedFileIndex];
+        if (selectedFile) {
+          selectFile(selectedFile);
+        }
+        return;
+      } else if (e.key === 'Escape') {
+        e.preventDefault();
+        setShowFiles(false);
+        setFileFilter('');
+        return;
+      }
+    }
+    
+    // Handle command suggestions navigation
+    if (showCommands && filteredCommands.length > 0) {
+      if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        setSelectedCommandIndex((prev) => (prev + 1) % filteredCommands.length);
+        return;
+      } else if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        setSelectedCommandIndex((prev) => (prev - 1 + filteredCommands.length) % filteredCommands.length);
+        return;
+      } else if (e.key === 'Tab') {
+        e.preventDefault();
+        const selectedCommand = filteredCommands[selectedCommandIndex];
+        if (selectedCommand) {
+          setInternalValue(selectedCommand.name);
           if (textareaRef.current) {
-            textareaRef.current.value = historyCommand;
-            // Move cursor to end
-            setTimeout(() => {
-              if (textareaRef.current) {
-                textareaRef.current.setSelectionRange(historyCommand.length, historyCommand.length);
-              }
-            }, 0);
+            textareaRef.current.value = selectedCommand.name;
           }
         }
+        return;
+      } else if (e.key === 'Enter') {
+        e.preventDefault();
+        const selectedCommand = filteredCommands[selectedCommandIndex];
+        if (selectedCommand) {
+          selectCommand(selectedCommand);
+        }
+        return;
+      } else if (e.key === 'Escape') {
+        e.preventDefault();
+        setShowCommands(false);
+        setCommandFilter('');
+        return;
+      }
+    }
+    
+    // Handle class suggestions navigation
+    if (showClassSuggestions && filteredCourses.length > 0) {
+      if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        setSelectedClassIndex((prev) => (prev + 1) % filteredCourses.length);
+        return;
+      } else if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        setSelectedClassIndex((prev) => (prev - 1 + filteredCourses.length) % filteredCourses.length);
+        return;
+      } else if (e.key === 'Tab' || e.key === 'Enter') {
+        e.preventDefault();
+        const selectedCourse = filteredCourses[selectedClassIndex];
+        if (selectedCourse) {
+          selectClass(selectedCourse);
+        }
+        return;
+      } else if (e.key === 'Escape') {
+        e.preventDefault();
+        setShowClassSuggestions(false);
+        setClassFilter('');
         return;
       }
     }
 
-    // First, let keyboard navigation handle the event
-    const handled = handleKeyboardNavigation(e);
-    if (handled) return;
-
-    // Handle Enter key for submission
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
       e.stopPropagation();
@@ -362,47 +464,40 @@ export const ChatInputOptimized = memo(forwardRef<ChatInputHandle, ChatInputProp
       
       // Handle /theme command with parameters
       if (trimmedValue.startsWith('/theme ')) {
-        const param = trimmedValue.substring(7).trim();
-        addToHistory(trimmedValue);
-        executeCommandWithParameter('/theme', param);
+        const param = trimmedValue.substring(7).trim().toLowerCase();
+        if (param === 'light' && isDark) {
+          toggleTheme();
+        } else if (param === 'dark' && !isDark) {
+          toggleTheme();
+        }
+        setInternalValue('');
+        if (textareaRef.current) {
+          textareaRef.current.value = '';
+          resetHeight();
+        }
         return;
       }
       
       // Handle /cd command with parameters
       if (trimmedValue.startsWith('/cd ')) {
-        const param = trimmedValue.substring(4).trim();
-        addToHistory(trimmedValue);
-        executeCommandWithParameter('/cd', param);
-        return;
-      }
-      
-      // Handle /open command with parameters
-      if (trimmedValue.startsWith('/open ')) {
-        const param = trimmedValue.substring(6).trim();
-        addToHistory(trimmedValue);
-        executeCommandWithParameter('/open', param);
-        return;
-      }
-      
-      // Handle /remove command with parameters
-      if (trimmedValue.startsWith('/remove ')) {
-        const param = trimmedValue.substring(8).trim();
-        addToHistory(trimmedValue);
-        executeCommandWithParameter('/remove', param);
-        return;
-      }
-      
-      // Handle /rename command with parameters
-      if (trimmedValue.startsWith('/rename ')) {
-        const param = trimmedValue.substring(8).trim();
-        addToHistory(trimmedValue);
-        executeCommandWithParameter('/rename', param);
+        const className = trimmedValue.substring(4).trim();
+        const matchedCourse = courses.find(course => 
+          course.name.toLowerCase() === className.toLowerCase() ||
+          course.code.toLowerCase() === className.toLowerCase()
+        );
+        if (matchedCourse) {
+          navigate(`/class/${matchedCourse.id}`);
+        }
+        setInternalValue('');
+        if (textareaRef.current) {
+          textareaRef.current.value = '';
+          resetHeight();
+        }
         return;
       }
       
       const matchedCommand = allCommands.find(cmd => cmd.name === trimmedValue);
       if (matchedCommand) {
-        addToHistory(trimmedValue);
         matchedCommand.action();
         return;
       }
@@ -417,23 +512,7 @@ export const ChatInputOptimized = memo(forwardRef<ChatInputHandle, ChatInputProp
         }
       }
     }
-  }, [
-    handleKeyboardNavigation,
-    internalValue,
-    selectedTextForChat,
-    onSubmit,
-    resetHeight,
-    isAiLoading,
-    allCommands,
-    executeCommandWithParameter,
-    setInternalValue,
-    navigateHistory,
-    addToHistory,
-    showFiles,
-    showCommands,
-    showClassSuggestions,
-    showDocumentSuggestions,
-  ]);
+  }, [internalValue, selectedTextForChat, onSubmit, resetHeight, isAiLoading, showCommands, filteredCommands, selectedCommandIndex, selectCommand, allCommands, showFiles, filteredFiles, selectedFileIndex, selectFile, isDark, toggleTheme, showClassSuggestions, filteredCourses, selectedClassIndex, selectClass, courses, navigate]);
 
   const handleFormSubmit = useCallback((e: React.FormEvent) => {
     e.preventDefault();
@@ -444,47 +523,40 @@ export const ChatInputOptimized = memo(forwardRef<ChatInputHandle, ChatInputProp
     
     // Handle /theme command with parameters
     if (trimmedValue.startsWith('/theme ')) {
-      const param = trimmedValue.substring(7).trim();
-      addToHistory(trimmedValue);
-      executeCommandWithParameter('/theme', param);
+      const param = trimmedValue.substring(7).trim().toLowerCase();
+      if (param === 'light' && isDark) {
+        toggleTheme();
+      } else if (param === 'dark' && !isDark) {
+        toggleTheme();
+      }
+      setInternalValue('');
+      if (textareaRef.current) {
+        textareaRef.current.value = '';
+        resetHeight();
+      }
       return;
     }
     
     // Handle /cd command with parameters
     if (trimmedValue.startsWith('/cd ')) {
-      const param = trimmedValue.substring(4).trim();
-      addToHistory(trimmedValue);
-      executeCommandWithParameter('/cd', param);
-      return;
-    }
-    
-    // Handle /open command with parameters
-    if (trimmedValue.startsWith('/open ')) {
-      const param = trimmedValue.substring(6).trim();
-      addToHistory(trimmedValue);
-      executeCommandWithParameter('/open', param);
-      return;
-    }
-    
-    // Handle /remove command with parameters
-    if (trimmedValue.startsWith('/remove ')) {
-      const param = trimmedValue.substring(8).trim();
-      addToHistory(trimmedValue);
-      executeCommandWithParameter('/remove', param);
-      return;
-    }
-    
-    // Handle /rename command with parameters
-    if (trimmedValue.startsWith('/rename ')) {
-      const param = trimmedValue.substring(8).trim();
-      addToHistory(trimmedValue);
-      executeCommandWithParameter('/rename', param);
+      const className = trimmedValue.substring(4).trim();
+      const matchedCourse = courses.find(course => 
+        course.name.toLowerCase() === className.toLowerCase() ||
+        course.code.toLowerCase() === className.toLowerCase()
+      );
+      if (matchedCourse) {
+        navigate(`/classes/${matchedCourse.id}`);
+      }
+      setInternalValue('');
+      if (textareaRef.current) {
+        textareaRef.current.value = '';
+        resetHeight();
+      }
       return;
     }
     
     const matchedCommand = allCommands.find(cmd => cmd.name === trimmedValue);
     if (matchedCommand) {
-      addToHistory(trimmedValue);
       matchedCommand.action();
       return;
     }
@@ -498,17 +570,7 @@ export const ChatInputOptimized = memo(forwardRef<ChatInputHandle, ChatInputProp
         resetHeight();
       }
     }
-  }, [
-    internalValue,
-    selectedTextForChat,
-    onSubmit,
-    resetHeight,
-    isAiLoading,
-    allCommands,
-    executeCommandWithParameter,
-    setInternalValue,
-    addToHistory,
-  ]);
+  }, [internalValue, selectedTextForChat, onSubmit, resetHeight, isAiLoading, allCommands, isDark, toggleTheme, courses, navigate]);
 
   return (
     <div className="pb-4 bg-transparent -mt-16 relative z-50">
@@ -535,13 +597,6 @@ export const ChatInputOptimized = memo(forwardRef<ChatInputHandle, ChatInputProp
                   courses={filteredCourses}
                   selectedIndex={selectedClassIndex}
                   onSelectClass={selectClass}
-                />
-              )}
-              {showDocumentSuggestions && (
-                <DocumentSuggestions
-                  documents={filteredDocuments}
-                  selectedIndex={selectedDocumentIndex}
-                  onSelectDocument={selectDocument}
                 />
               )}
               {selectedTextForChat && (
@@ -579,35 +634,8 @@ export const ChatInputOptimized = memo(forwardRef<ChatInputHandle, ChatInputProp
                 }}
                 disabled={false}
               />
-
-              <div className="pr-1.5 pb-1.5 pl-1.5 flex justify-between items-center gap-1">
-                {onFilesUploaded && (
-                  <>
-                    <button
-                      type="button"
-                      onClick={() => fileInputRef.current?.click()}
-                      className="p-2 text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200 rounded-md transition-all duration-200 hover:bg-gray-100 dark:hover:bg-neutral-600"
-                      title="Upload PDF"
-                    >
-                      <Plus className="w-5 h-5" />
-                    </button>
-                    <input
-                      ref={fileInputRef}
-                      type="file"
-                      accept=".pdf"
-                      multiple
-                      onChange={(e) => {
-                        const selectedFiles = Array.from(e.target.files || []);
-                        if (selectedFiles.length > 0) {
-                          onFilesUploaded(selectedFiles);
-                          // Clear the input so the same file can be selected again
-                          e.target.value = '';
-                        }
-                      }}
-                      className="hidden"
-                    />
-                  </>
-                )}
+              
+              <div className="pr-1.5 pb-1.5 flex justify-end items-center">
                 <button
                   type="submit"
                   disabled={isAiLoading || (!internalValue.trim() && !selectedTextForChat?.trim())}

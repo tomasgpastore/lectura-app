@@ -1,5 +1,4 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
-import { useVirtualizer } from '@tanstack/react-virtual';
 import { Menu, Trash2 } from 'lucide-react';
 import { ChatMessageUI, Course } from '../../types';
 import { MessageComponent } from './MessageComponent';
@@ -8,6 +7,13 @@ import { ChatInputOptimized, ChatInputHandle } from './ChatInputOptimized';
 interface Document {
   id: string;
   name: string;
+}
+
+interface ConversationGroup {
+  id: string;
+  userMessage: ChatMessageUI | null;
+  aiMessage: ChatMessageUI | null;
+  isActive: boolean;
 }
 
 interface ChatInterfaceProps {
@@ -34,7 +40,7 @@ interface ChatInterfaceProps {
   onFilesUploaded?: (files: File[]) => void;
 }
 
-export const ChatInterface: React.FC<ChatInterfaceProps> = ({
+export const ChatInterfaceGrouped: React.FC<ChatInterfaceProps> = ({
   messages,
   isAiLoading,
   onSubmit,
@@ -59,88 +65,86 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
 }) => {
   const [showMenu, setShowMenu] = useState(false);
   const [copiedMessageId, setCopiedMessageId] = useState<string | null>(null);
-  const sentinelHeight = 150; 
+  const [containerHeight, setContainerHeight] = useState(0);
+  
   const menuRef = useRef<HTMLDivElement>(null);
   const messagesContainerRef = useRef<HTMLDivElement>(null);
-  const bottomSpacerRef = useRef<HTMLDivElement>(null);
+  const activeGroupRef = useRef<HTMLDivElement>(null);
   const chatInputRef = useRef<ChatInputHandle>(null);
 
   // Get all chat messages in correct chronological order
   const visibleMessages = useMemo(() => {
-    // API returns messages in reverse chronological order (newest first)
-    // So we just need to reverse the array to get oldest first
     return [...messages].reverse();
   }, [messages]);
 
-  // Initialize the virtualizer
-  const virtualizer = useVirtualizer({
-    count: visibleMessages.length,
-    getScrollElement: () => messagesContainerRef.current,
-    estimateSize: () => 100, // Estimated height of each message
-    overscan: 5, // Render 5 extra items on each side
-  });
+  // Group messages into conversation pairs
+  const conversationGroups = useMemo(() => {
+    const groups: ConversationGroup[] = [];
+    let currentGroup: ConversationGroup | null = null;
 
-  // Handle scroll events - simplified without bottom tracking
-  const handleScroll = useCallback(() => {
-    // Could add scroll-based logic here if needed
-  }, []);
+    visibleMessages.forEach((message, index) => {
+      if (message.sender === 'user') {
+        // Start a new group with user message
+        currentGroup = {
+          id: `group-${message.id}`,
+          userMessage: message,
+          aiMessage: null,
+          isActive: false
+        };
+        groups.push(currentGroup);
+      } else if (message.sender === 'assistant') {
+        if (currentGroup && !currentGroup.aiMessage) {
+          // Add AI message to current group if it doesn't have one
+          currentGroup.aiMessage = message;
+        } else {
+          // Create a new group with just AI message (orphaned case)
+          groups.push({
+            id: `group-orphan-${message.id}`,
+            userMessage: null,
+            aiMessage: message,
+            isActive: false
+          });
+        }
+      }
+    });
 
-  // Simple scroll to bottom on new messages
+    // Mark the last group as active
+    if (groups.length > 0) {
+      groups[groups.length - 1].isActive = true;
+    }
+
+    return groups;
+  }, [visibleMessages]);
+
+  // Update container height
   useEffect(() => {
-    if (messages.length === 0) return;
-    
-    // Only scroll if the PDF preview state hasn't changed
-    if (!isPdfPreviewOpen) return;
-    
-    // Scroll to bottom when new messages arrive
-    const scrollToBottom = () => {
-      const container = messagesContainerRef.current;
-      if (container) {
-        container.scrollTop = container.scrollHeight;
+    const updateHeight = () => {
+      if (messagesContainerRef.current) {
+        setContainerHeight(messagesContainerRef.current.clientHeight);
       }
     };
-    
-    // Wait for DOM to update
-    setTimeout(scrollToBottom, 100);
-  }, [messages.length]);
 
+    updateHeight();
+    window.addEventListener('resize', updateHeight);
+    return () => window.removeEventListener('resize', updateHeight);
+  }, []);
 
-
-  // Scroll to bottom on page refresh/initial load
-  const hasInitiallyScrolledRef = useRef(false);
-  const previousPdfStateRef = useRef(isPdfPreviewOpen);
-  
+  // Scroll to active group when a new one is created
   useEffect(() => {
-    // Skip scroll if PDF preview state changed
-    if (previousPdfStateRef.current !== isPdfPreviewOpen) {
-      previousPdfStateRef.current = isPdfPreviewOpen;
-      return;
+    if (activeGroupRef.current && messagesContainerRef.current) {
+      activeGroupRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
     }
-    
-    if (visibleMessages.length > 0 && messagesContainerRef.current && !hasInitiallyScrolledRef.current) {
-      hasInitiallyScrolledRef.current = true;
-      
-      // Wait for virtualizer to render all items
-      const scrollToBottom = () => {
-        const container = messagesContainerRef.current;
-        if (container) {
-          // Force virtualizer to render all items first
-          virtualizer.scrollToIndex(visibleMessages.length - 1, { align: 'end' });
-          
-          // Then scroll container to bottom
-          setTimeout(() => {
-            container.scrollTo({
-              top: container.scrollHeight,
-              behavior: "instant" // Changed from "auto" to "instant"
-            });
-          }, 100);
-        }
-      };
-      
-      // Give time for initial render
-      setTimeout(scrollToBottom, 300);
+  }, [conversationGroups.length]);
+
+  // Auto-scroll in the active group while AI is typing
+  useEffect(() => {
+    if (isAiLoading && activeGroupRef.current) {
+      const groupContent = activeGroupRef.current.querySelector('.group-content');
+      if (groupContent && groupContent.scrollHeight > activeGroupRef.current.clientHeight) {
+        groupContent.scrollTop = groupContent.scrollHeight;
+      }
     }
-  }, [visibleMessages.length, virtualizer, isPdfPreviewOpen]); // Added isPdfPreviewOpen
+  }, [isAiLoading, messages]);
 
   // Close menu when clicking outside
   useEffect(() => {
@@ -196,11 +200,10 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
         </div>
       </div>
 
-      {/* Chat Messages */}
+      {/* Chat Messages Container */}
       <div 
         ref={messagesContainerRef}
-        onScroll={handleScroll}
-        className="flex-1 overflow-y-auto py-6 min-h-0"
+        className="flex-1 overflow-y-auto min-h-0"
       >
         {messages.length === 0 ? (
           <div className="text-center py-12">
@@ -218,82 +221,85 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
           </div>
         ) : (
           <>
-            {/* Virtualized Message Container */}
-            <div
-              style={{
-                height: `${virtualizer.getTotalSize()}px`,
-                width: '100%',
-                position: 'relative',
-              }}
-            >
-              {/* Virtual items - positioned absolutely */}
-              <div
-                style={{
-                  position: 'absolute',
-                  top: 0,
-                  left: 0,
-                  width: '100%',
-                  transform: `translateY(${virtualizer.getVirtualItems()[0]?.start ?? 0}px)`,
-                }}
-              >
-                {virtualizer.getVirtualItems().map((virtualItem) => {
-                  const message = visibleMessages[virtualItem.index];
-                  return (
-                    <div
-                      key={virtualItem.key}
-                      data-index={virtualItem.index}
-                      data-message-id={message.id}
-                      ref={virtualizer.measureElement}
-                      className="max-w-4xl mx-auto px-12 py-4"
-                    >
-                      <MessageComponent
-                        message={message}
-                        isStreaming={streamingMessageIds.has(message.id)}
-                        copiedMessageId={copiedMessageId}
-                        onCopyMessage={handleCopyMessage}
-                        onOpenInFile={onOpenInFile}
-                        slides={slides}
-                      />
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-            
-            {/* Loading dots - show when AI is loading */}
-            {isAiLoading && (
-              <div className="max-w-4xl mx-auto px-12 py-4">
-                <div className="flex items-start justify-start">
-                  <div className="text-gray-900 dark:text-white w-full">
-                    <div className="flex space-x-1 items-center">
-                      <div className="w-2 h-2 bg-[#F97316] dark:bg-[#F97316]/80 rounded-full animate-bounce"></div>
-                      <div className="w-2 h-2 bg-[#F97316] dark:bg-[#F97316]/80 rounded-full animate-bounce" style={{ animationDelay: '0.1s' }}></div>
-                      <div className="w-2 h-2 bg-[#F97316] dark:bg-[#F97316]/80 rounded-full animate-bounce" style={{ animationDelay: '0.2s' }}></div>
-                    </div>
+            {/* Conversation Groups */}
+            {conversationGroups.map((group, index) => {
+              const isLastGroup = index === conversationGroups.length - 1;
+              const isStreaming = group.aiMessage && streamingMessageIds.has(group.aiMessage.id);
+              
+              return (
+                <div
+                  key={group.id}
+                  ref={isLastGroup ? activeGroupRef : null}
+                  className={`conversation-group relative ${isLastGroup ? 'overflow-hidden' : ''}`}
+                  style={{ 
+                    minHeight: isLastGroup ? `${containerHeight}px` : 'auto',
+                    height: isLastGroup ? `${containerHeight}px` : 'auto'
+                  }}
+                >
+                  <div 
+                    className={`group-content flex flex-col ${
+                      isLastGroup ? 'h-full overflow-y-auto py-6' : 'py-6'
+                    }`}
+                  >
+                    {/* User Message */}
+                    {group.userMessage && (
+                      <div className="max-w-4xl mx-auto px-12 w-full">
+                        <MessageComponent
+                          message={group.userMessage}
+                          isStreaming={false}
+                          copiedMessageId={copiedMessageId}
+                          onCopyMessage={handleCopyMessage}
+                          onOpenInFile={onOpenInFile}
+                          slides={slides}
+                        />
+                      </div>
+                    )}
+                    
+                    {/* AI Message */}
+                    {group.aiMessage && (
+                      <div className="max-w-4xl mx-auto px-12 w-full mt-4">
+                        <MessageComponent
+                          message={group.aiMessage}
+                          isStreaming={isStreaming || false}
+                          copiedMessageId={copiedMessageId}
+                          onCopyMessage={handleCopyMessage}
+                          onOpenInFile={onOpenInFile}
+                          slides={slides}
+                        />
+                      </div>
+                    )}
+                    
+                    {/* Loading indicator for active group */}
+                    {isLastGroup && isAiLoading && !group.aiMessage && (
+                      <div className="max-w-4xl mx-auto px-12 mt-4">
+                        <div className="flex items-start justify-start">
+                          <div className="text-gray-900 dark:text-white w-full">
+                            <div className="flex space-x-1 items-center">
+                              <div className="w-2 h-2 bg-[#F97316] dark:bg-[#F97316]/80 rounded-full animate-bounce"></div>
+                              <div className="w-2 h-2 bg-[#F97316] dark:bg-[#F97316]/80 rounded-full animate-bounce" style={{ animationDelay: '0.1s' }}></div>
+                              <div className="w-2 h-2 bg-[#F97316] dark:bg-[#F97316]/80 rounded-full animate-bounce" style={{ animationDelay: '0.2s' }}></div>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    )}
                   </div>
+                  
+                  {/* Separator between groups (only for non-active groups) */}
+                  {!isLastGroup && (
+                    <div className="border-b border-gray-200 dark:border-neutral-700 mx-12"></div>
+                  )}
                 </div>
-              </div>
-            )}
+              );
+            })}
           </>
         )}
-        
-        {/* ChatGPT-style bottom sentinel - ALWAYS at the very bottom */}
-        <div
-          ref={bottomSpacerRef}
-          aria-hidden
-          className="pointer-events-none flex-shrink-0"
-          style={{ 
-            height: `${sentinelHeight}px`,
-            minHeight: `${sentinelHeight}px`
-          }}
-        />
       </div>
 
-      {/* ChatGPT-style input isolation - positioned outside scroll container */}
+      {/* Chat Input */}
       <ChatInputOptimized
         ref={chatInputRef}
         onSubmit={(message) => {
-          // Create a fake event with the message
           const fakeEvent = {
             preventDefault: () => {},
             currentMessage: message

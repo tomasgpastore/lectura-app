@@ -163,10 +163,10 @@ export const MarkdownRenderer: React.FC<MarkdownRendererProps> = React.memo(({
         const currentPageButton = (
           <button
             key={`citation-current-page-${match!.index}`}
-            className="inline-flex items-center px-1.5 py-0.5 ml-0.5 mr-0.5 text-xs font-medium bg-blue-100 hover:bg-blue-200 dark:bg-blue-900 dark:hover:bg-blue-800 text-blue-800 dark:text-blue-200 rounded transition-colors cursor-pointer border border-blue-200 dark:border-blue-700"
-            title="Current Page"
+            className="inline-flex items-center px-1.5 py-0.5 ml-0.5 mr-0.5 text-xs font-medium bg-orange-100 hover:bg-orange-200 dark:bg-orange-900 dark:hover:bg-orange-800 text-orange-800 dark:text-orange-200 rounded transition-colors cursor-pointer border border-orange-200 dark:border-orange-700"
+            title="Current page"
           >
-            Current Page
+            Current page
           </button>
         );
         parts.push(currentPageButton);
@@ -251,7 +251,7 @@ export const MarkdownRenderer: React.FC<MarkdownRendererProps> = React.memo(({
   const preprocessMarkdownForCitations = (markdown: string): string => {
     // First, let's convert the markdown to handle individual citations
     // This regex matches [^1], [^2], etc. individually
-    const singleCitationRegex = /\[\^(\d+|Current Page)\]/g;
+    const singleCitationRegex = /\[\^(\d+|Current page)\]/g;
     let citationGroupId = 0;
     
     // Process the text to group consecutive citations
@@ -286,7 +286,7 @@ export const MarkdownRenderer: React.FC<MarkdownRendererProps> = React.memo(({
           result += createCitationButtons(consecutiveCitations, citationGroupId++);
           consecutiveCitations = [];
         }
-        result += `<button class="inline-flex items-center px-1.5 py-0.5 ml-0.5 mr-0.5 text-xs font-medium bg-blue-100 hover:bg-blue-200 dark:bg-blue-900 dark:hover:bg-blue-800 text-blue-800 dark:text-blue-200 rounded transition-colors cursor-pointer border border-blue-200 dark:border-blue-700" title="Current Page">Current Page</button>`;
+        result += `<button class="inline-flex items-center px-1.5 py-0.5 ml-0.5 mr-0.5 text-xs font-medium bg-orange-100 hover:bg-orange-200 dark:bg-orange-900 dark:hover:bg-orange-800 text-orange-800 dark:text-orange-200 rounded transition-colors cursor-pointer border border-orange-200 dark:border-orange-700" title="Current Page">Current Page</button>`;
       } else {
         // Collect numeric citations
         consecutiveCitations.push(parseInt(sourceNum));

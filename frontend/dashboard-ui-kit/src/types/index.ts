@@ -88,6 +88,7 @@ export interface ChatFrontDTO {
   courseId: string;
   userPrompt: string;
   snapshot?: string;
+  priorityDocuments?: string[];
 }
 
 export interface Source {

@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Book, FileText, MoreVertical, Edit3, Trash2 } from 'lucide-react';
+import { FileText, MoreVertical, Edit3, Trash2 } from 'lucide-react';
 import { Course } from '../../types';
 
 interface ClassCardProps {
@@ -49,8 +49,12 @@ export const ClassCard: React.FC<ClassCardProps> = ({ classData, onClick, onEdit
       className="group bg-white dark:bg-gray-800 rounded-xl p-6 shadow-sm hover:shadow-lg border border-gray-200 dark:border-gray-700 cursor-pointer transition-all duration-200 hover:scale-105 relative"
     >
       <div className="flex items-start justify-between mb-4">
-        <div className="w-12 h-12 bg-orange-100 dark:bg-orange-900/30 rounded-lg flex items-center justify-center group-hover:scale-110 transition-transform">
-          <Book className="w-6 h-6 text-orange-600 dark:text-orange-400" />
+        <div className="flex items-center justify-center group-hover:scale-110 transition-transform">
+          <img 
+            src={classData.slideId.length > 0 ? "/folder-icon.png" : "/folder-empty-icon.png"} 
+            alt={classData.slideId.length > 0 ? "Folder with files" : "Empty folder"} 
+            className="w-10 h-10" 
+          />
         </div>
         
         <div className="flex items-center space-x-2">
