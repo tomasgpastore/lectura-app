@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { X, AlertTriangle } from 'lucide-react';
 import { Document } from '../../types';
 
@@ -19,6 +19,24 @@ export const RemoveDocumentModal: React.FC<RemoveDocumentModalProps> = ({
     onRemoveDocument();
     onClose();
   };
+
+  // Add Enter key handler
+  useEffect(() => {
+    if (!isOpen) return;
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        handleRemove();
+      } else if (e.key === 'Escape') {
+        e.preventDefault();
+        onClose();
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isOpen, onClose, onRemoveDocument]);
 
   if (!isOpen || !document) return null;
 

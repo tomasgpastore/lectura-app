@@ -33,7 +33,7 @@ export const FileUploadArea: React.FC<FileUploadAreaProps> = ({ onFilesUploaded 
     setIsDragOver(false);
 
     const files = Array.from(e.dataTransfer.files);
-    const allowedTypes = ['.pdf', '.doc', '.docx', '.txt', '.md'];
+    const allowedTypes = ['.pdf'];
     
     const validFiles = files.filter(file => {
       const extension = '.' + file.name.split('.').pop()?.toLowerCase();
@@ -49,8 +49,8 @@ export const FileUploadArea: React.FC<FileUploadAreaProps> = ({ onFilesUploaded 
     <div 
       className={`border-2 border-dashed rounded-xl p-6 text-center transition-colors cursor-pointer group ${
         isDragOver 
-          ? 'border-orange-500 dark:border-orange-400 bg-orange-50 dark:bg-orange-900/20' 
-          : 'border-gray-300 dark:border-gray-600 hover:border-orange-500 dark:hover:border-orange-400'
+          ? 'border-[#F97316] dark:border-[#F97316]/80 bg-[#F97316]/10 dark:bg-[#F97316]/20' 
+          : 'border-gray-300 dark:border-gray-600 hover:border-[#F97316] dark:hover:border-[#F97316]/80'
       }`}
       onDragOver={handleDragOver}
       onDragLeave={handleDragLeave}
@@ -59,7 +59,7 @@ export const FileUploadArea: React.FC<FileUploadAreaProps> = ({ onFilesUploaded 
       <input
         type="file"
         multiple
-        accept=".pdf,.doc,.docx,.txt,.md"
+        accept=".pdf"
         onChange={handleFileChange}
         className="hidden"
         id="file-upload"
@@ -67,14 +67,14 @@ export const FileUploadArea: React.FC<FileUploadAreaProps> = ({ onFilesUploaded 
       <label htmlFor="file-upload" className="cursor-pointer">
         <Upload className={`w-8 h-8 mx-auto mb-2 transition-colors ${
           isDragOver 
-            ? 'text-orange-500 dark:text-orange-400' 
-            : 'text-gray-400 group-hover:text-orange-500'
+            ? 'text-[#F97316] dark:text-[#F97316]/80' 
+            : 'text-gray-400 group-hover:text-[#F97316]'
         }`} />
         <p className="text-sm text-gray-600 dark:text-gray-400">
           {isDragOver ? 'Drop files here' : 'Click to upload or drag and drop'}
         </p>
         <p className="text-xs text-gray-500 dark:text-gray-500 mt-1">
-          PDF, DOC, DOCX, TXT, MD files • Max 10MB per file
+          PDF • Max 10MB per file
         </p>
       </label>
     </div>

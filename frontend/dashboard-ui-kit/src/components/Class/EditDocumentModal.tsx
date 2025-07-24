@@ -5,8 +5,9 @@ import { Document } from '../../types';
 interface EditDocumentModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onUpdateDocument: (updates: { name: string }) => void;
+  onUpdateDocument: (updates: { name: string }) => Promise<void>;
   document: Document | null;
+  initialName?: string;
 }
 
 export const EditDocumentModal: React.FC<EditDocumentModalProps> = ({
@@ -14,20 +15,30 @@ export const EditDocumentModal: React.FC<EditDocumentModalProps> = ({
   onClose,
   onUpdateDocument,
   document,
+  initialName,
 }) => {
   const [newName, setNewName] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   // Reset form when modal opens/closes or document changes
   useEffect(() => {
     if (isOpen && document) {
-      // Remove file extension from name for editing
-      const nameWithoutExt = document.name.split('.').slice(0, -1).join('.');
-      setNewName(nameWithoutExt || document.name);
+      if (initialName) {
+        // Use the provided initial name, remove extension if present
+        const nameWithoutExt = initialName.split('.').slice(0, -1).join('.');
+        setNewName(nameWithoutExt || initialName);
+      } else {
+        // Remove file extension from name for editing
+        const nameWithoutExt = document.name.split('.').slice(0, -1).join('.');
+        setNewName(nameWithoutExt || document.name);
+      }
+      setError(null); // Clear any previous errors
     } else {
       setNewName('');
+      setError(null);
     }
-  }, [isOpen, document]);
+  }, [isOpen, document, initialName]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -35,6 +46,7 @@ export const EditDocumentModal: React.FC<EditDocumentModalProps> = ({
     if (!newName.trim() || !document) return;
     
     setIsSubmitting(true);
+    setError(null);
     
     try {
       // Add back the file extension
@@ -43,8 +55,9 @@ export const EditDocumentModal: React.FC<EditDocumentModalProps> = ({
       
       await onUpdateDocument({ name: fullName });
       onClose();
-    } catch (error) {
+    } catch (error: any) {
       console.error('Failed to update document:', error);
+      setError(error.message || 'Failed to update document');
     } finally {
       setIsSubmitting(false);
     }
@@ -100,6 +113,11 @@ export const EditDocumentModal: React.FC<EditDocumentModalProps> = ({
               <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
                 File extension will be preserved automatically
               </p>
+              {error && (
+                <p className="text-sm text-red-600 dark:text-red-400 mt-2">
+                  {error}
+                </p>
+              )}
             </div>
 
             <div className="flex space-x-3">
@@ -114,7 +132,7 @@ export const EditDocumentModal: React.FC<EditDocumentModalProps> = ({
               <button
                 type="submit"
                 disabled={isSubmitting || !newName.trim()}
-                className="flex-1 py-3 px-4 bg-gradient-to-r from-orange-600 to-red-600 hover:from-orange-700 hover:to-red-700 text-white rounded-xl font-semibold transition-all duration-300 shadow-lg hover:shadow-xl disabled:opacity-50 disabled:cursor-not-allowed"
+                className="flex-1 py-3 px-4 bg-gradient-to-r from-[#F97316] to-[#EF4444] hover:from-[#F97316]/90 hover:to-[#EF4444]/90 text-white rounded-xl font-semibold transition-all duration-300 shadow-lg hover:shadow-xl disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {isSubmitting ? 'Updating...' : 'Save Changes'}
               </button>

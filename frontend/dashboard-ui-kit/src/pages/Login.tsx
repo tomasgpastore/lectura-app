@@ -1,6 +1,5 @@
 import React, { useEffect } from 'react';
 import { GoogleLogin } from '@react-oauth/google';
-import { Brain } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
 
@@ -25,11 +24,12 @@ export const Login: React.FC = () => {
       <div className="max-w-md w-full space-y-8 p-8">
         <div className="text-center">
           <div className="flex justify-center mb-6">
-            <Brain className="w-16 h-16 text-transparent bg-clip-text bg-gradient-to-r from-orange-500 to-red-500" />
+            <img 
+              src="/logo.svg" 
+              alt="Lectura Logo" 
+              className="h-15"
+            />
           </div>
-          <h1 className="text-4xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-orange-500 to-red-500 mb-2">
-            LecturaLM
-          </h1>
           <p className="text-gray-600 text-lg">
             Sign in to your account
           </p>

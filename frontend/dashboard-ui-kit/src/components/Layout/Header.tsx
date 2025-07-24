@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Moon, Sun, Brain, LogOut, ChevronDown, User } from 'lucide-react';
+import { Moon, Sun, LogOut, ChevronDown, User } from 'lucide-react';
 import { useTheme } from '../../contexts/ThemeContext';
 import { useAuth } from '../../contexts/AuthContext';
 import { User as UserType } from '../../types';
@@ -66,11 +66,14 @@ export const Header: React.FC<HeaderProps> = ({ showAuth = true, courseName, cou
       <div className="mx-auto px-1 sm:px-2 lg:px-3">
         <div className="flex justify-between items-center h-16">
           <div className="flex items-center space-x-3">
-            <Brain className="w-8 h-8 text-transparent bg-clip-text bg-gradient-to-r from-orange-500 to-red-500" />
             <div className="flex items-center space-x-4">
-              <span className="text-2xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-orange-500 to-red-500">
-                LecturaLM
-              </span>
+              <a href="/">
+                <img 
+                  src="/logo.svg" 
+                  alt="Lectura Logo" 
+                  className="h-8"
+                />
+              </a>
               {courseName && (
                 <>
                   <div className="w-px h-6 bg-gray-300 dark:bg-gray-600"></div>

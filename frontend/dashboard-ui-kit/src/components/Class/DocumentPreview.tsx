@@ -336,7 +336,7 @@ export const DocumentPreview = ({ document: doc, onClose, onAddToChat, onSetSele
         
         <div className="flex h-full w-full" style={{ cursor: isResizing ? 'col-resize' : 'default' }}>
           {/* PDF Viewer */}
-          <div className="p-2 h-full" style={{ width: `${previewWidth}%`, minWidth: '450px' }}>
+          <div className="h-full" style={{ width: `${previewWidth}%`, minWidth: '450px' }}>
             <div className="bg-white dark:bg-neutral-800 dark:border-neutral-700 rounded-xl border flex flex-col h-full max-h-full overflow-hidden">
         {/* Header with controls */}
       <div className="flex items-center justify-between px-4 py-2 border-b border-gray-200 dark:border-neutral-700 flex-shrink-0">
@@ -454,7 +454,7 @@ export const DocumentPreview = ({ document: doc, onClose, onAddToChat, onSetSele
       </div>
 
       {/* PDF Viewer Container */}
-      <div className="flex-1 overflow-hidden bg-gray-50 dark:bg-neutral-900 min-h-0 relative">
+      <div id={`document-preview-${doc.id}`} className="flex-1 overflow-hidden bg-gray-50 dark:bg-neutral-900 min-h-0 relative">
         {loading ? (
           <div className="flex items-center justify-center h-full">
             <div className="text-center">
@@ -467,7 +467,7 @@ export const DocumentPreview = ({ document: doc, onClose, onAddToChat, onSetSele
             <p className="text-red-500 dark:text-red-400 mb-4">{error}</p>
             <button 
               onClick={() => refetch()}
-              className="px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition-colors"
+              className="px-4 py-2 bg-[#F97316] text-white rounded-lg hover:bg-[#F97316]/90 transition-colors"
             >
               Retry
             </button>
@@ -520,13 +520,13 @@ export const DocumentPreview = ({ document: doc, onClose, onAddToChat, onSetSele
           {/* Resize Handle */}
           <div className="py-2 flex items-center">
             <div 
-              className="w-1 h-full bg-gray-300 dark:bg-neutral-600 hover:bg-blue-400 dark:hover:bg-blue-500 cursor-col-resize transition-colors"
+              className="w-1 h-full bg-gray-300 dark:bg-neutral-600 hover:bg-orange-600 dark:hover:bg-orange-600 cursor-col-resize transition-colors"
               onMouseDown={handleMouseDown}
             />
           </div>
           
           {/* Chat Interface */}
-          <div className="flex-1 p-2 h-full">
+          <div className="flex-1 h-full">
             {children}
           </div>
         </div>
@@ -535,7 +535,7 @@ export const DocumentPreview = ({ document: doc, onClose, onAddToChat, onSetSele
         {selectedText && selectionPosition && (onAddToChat || onSetSelectedTextForChat) && (
           <button
             onClick={handleAddToChat}
-            className="fixed z-50 px-3 py-1.5 bg-orange-600 hover:bg-orange-700 text-white text-xs font-medium rounded-lg shadow-lg transition-all duration-200 border border-orange-500 hover:shadow-xl hover:scale-105"
+            className="fixed z-50 px-3 py-1.5 bg-[#F97316] hover:bg-[#F97316]/90 text-white text-xs font-medium rounded-lg shadow-lg transition-all duration-200 border border-[#F97316]/50 hover:shadow-xl hover:scale-105"
             style={{
               left: `${selectionPosition.x}px`,
               top: `${selectionPosition.y}px`,
@@ -684,7 +684,7 @@ export const DocumentPreview = ({ document: doc, onClose, onAddToChat, onSetSele
       </div>
 
       {/* PDF Viewer Container */}
-      <div className="flex-1 overflow-hidden bg-gray-50 dark:bg-neutral-900 min-h-0 relative">
+      <div id={`document-preview-${doc.id}`} className="flex-1 overflow-hidden bg-gray-50 dark:bg-neutral-900 min-h-0 relative">
         {loading ? (
           <div className="flex items-center justify-center h-full">
             <div className="text-center">
@@ -697,7 +697,7 @@ export const DocumentPreview = ({ document: doc, onClose, onAddToChat, onSetSele
             <p className="text-red-500 dark:text-red-400 mb-4">{error}</p>
             <button 
               onClick={() => refetch()}
-              className="px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition-colors"
+              className="px-4 py-2 bg-[#F97316] text-white rounded-lg hover:bg-[#F97316]/90 transition-colors"
             >
               Retry
             </button>

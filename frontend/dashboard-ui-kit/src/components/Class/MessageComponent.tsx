@@ -33,7 +33,7 @@ export const MessageComponent = React.memo<MessageComponentProps>(({
       }`}>
         {message.isUser ? (
           // User message - no background, borders, picture, or time
-          <div className="inline-block px-4 py-3 bg-orange-600 text-white text-left max-w-md break-words overflow-hidden" style={{ borderRadius: '1rem 0.25rem 1rem 1rem' }}>
+          <div className="inline-block px-4 py-3 bg-[#F97316] text-white text-left max-w-md break-words overflow-hidden" style={{ borderRadius: '1rem 0.25rem 1rem 1rem' }}>
             <div className="prose prose-base prose-invert max-w-none break-words">
               {/* Handle different message formats */}
               {(() => {
