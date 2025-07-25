@@ -1,13 +1,8 @@
-import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo, memo } from 'react';
 import { Menu, Trash2 } from 'lucide-react';
-import { ChatMessageUI, Course } from '../../types';
+import { useVirtualizer } from '@tanstack/react-virtual';
+import { ChatMessageUI } from '../../types';
 import { MessageComponent } from './MessageComponent';
-import { ChatInputOptimized, ChatInputHandle } from './ChatInputOptimized';
-
-interface Document {
-  id: string;
-  name: string;
-}
 
 interface ConversationGroup {
   id: string;
@@ -24,23 +19,9 @@ interface ChatInterfaceProps {
   streamingMessageIds: Set<string>;
   onOpenInFile?: (s3FileName: string, pageStart: number, rawText: string) => void;
   slides?: Array<{ id: string; originalFileName: string }>;
-  selectedTextForChat?: string;
-  onClearSelectedText?: () => void;
-  isPdfPreviewOpen?: boolean;
-  currentPdfPage?: number;
-  indicatorItems?: Array<{ id: string; type: 'current-page' | 'document'; name: string; removable: boolean }>;
-  onIndicatorItemsChange?: (items: Array<{ id: string; type: 'current-page' | 'document'; name: string; removable: boolean }>) => void;
-  inputValue?: string;
-  onInputValueChange?: (value: string) => void;
-  courses?: Course[];
-  documents?: Document[];
-  onOpenDocument?: (documentId: string) => void;
-  onRemoveDocument?: (documentId: string) => void;
-  onRenameDocument?: (documentId: string, newName: string) => void;
-  onFilesUploaded?: (files: File[]) => void;
 }
 
-export const ChatInterface: React.FC<ChatInterfaceProps> = ({
+const ChatInterfaceComponent: React.FC<ChatInterfaceProps> = ({
   messages,
   isAiLoading,
   onSubmit,
@@ -48,20 +29,6 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
   streamingMessageIds,
   onOpenInFile,
   slides = [],
-  selectedTextForChat,
-  onClearSelectedText,
-  isPdfPreviewOpen,
-  currentPdfPage,
-  indicatorItems,
-  onIndicatorItemsChange,
-  inputValue,
-  onInputValueChange,
-  courses = [],
-  documents = [],
-  onOpenDocument,
-  onRemoveDocument,
-  onRenameDocument,
-  onFilesUploaded,
 }) => {
   const [showMenu, setShowMenu] = useState(false);
   const [copiedMessageId, setCopiedMessageId] = useState<string | null>(null);
@@ -69,7 +36,6 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
   const menuRef = useRef<HTMLDivElement>(null);
   const messagesContainerRef = useRef<HTMLDivElement>(null);
   const activeGroupRef = useRef<HTMLDivElement>(null);
-  const chatInputRef = useRef<ChatInputHandle>(null);
 
   // Get all chat messages in correct chronological order
   const visibleMessages = useMemo(() => {
@@ -118,28 +84,60 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
     return groups;
   }, [visibleMessages]);
 
-  // Update container height
+  // Update container height and scrollbar width
   useEffect(() => {
-    const updateHeight = () => {
+    const updateMeasurements = () => {
       if (messagesContainerRef.current) {
         setContainerHeight(messagesContainerRef.current.clientHeight);
+        
+        // Calculate scrollbar width
+        const scrollbarWidth = messagesContainerRef.current.offsetWidth - messagesContainerRef.current.clientWidth;
+        document.documentElement.style.setProperty('--scrollbar-width', `${scrollbarWidth}px`);
       }
     };
 
-    updateHeight();
-    window.addEventListener('resize', updateHeight);
-    return () => window.removeEventListener('resize', updateHeight);
+    updateMeasurements();
+    window.addEventListener('resize', updateMeasurements);
+    
+    // Also update when content changes might affect scrollbar
+    const observer = new ResizeObserver(updateMeasurements);
+    if (messagesContainerRef.current) {
+      observer.observe(messagesContainerRef.current);
+    }
+    
+    return () => {
+      window.removeEventListener('resize', updateMeasurements);
+      observer.disconnect();
+    };
   }, []);
 
-  // Scroll to active group when a new one is created
+  // Track previous groups length to detect new groups
+  const prevGroupsLengthRef = useRef(conversationGroups.length);
+  
+  // Initialize the virtualizer
+  const virtualizer = useVirtualizer({
+    count: conversationGroups.length,
+    getScrollElement: () => messagesContainerRef.current,
+    estimateSize: useCallback((index: number) => {
+      // Last group has containerHeight, others have estimated height
+      return index === conversationGroups.length - 1 ? containerHeight || 500 : 200;
+    }, [conversationGroups.length, containerHeight]),
+    overscan: 5, // Render 5 extra items on each side
+  });
+  
+  // Scroll to bottom when new groups are added
   useEffect(() => {
-    if (activeGroupRef.current && messagesContainerRef.current && conversationGroups.length > 0) {
-      // Delay scroll to allow animation to play
-      setTimeout(() => {
-        activeGroupRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-      }, 100);
+    if (conversationGroups.length > prevGroupsLengthRef.current && conversationGroups.length > 0) {
+      // New group was added - scroll to bottom
+      virtualizer.scrollToIndex(conversationGroups.length - 1, {
+        align: 'end',
+        behavior: 'smooth'
+      });
     }
-  }, [conversationGroups.length]);
+    
+    // Update the ref
+    prevGroupsLengthRef.current = conversationGroups.length;
+  }, [conversationGroups.length, virtualizer]);
 
   // Auto-scroll in the active group while AI is typing
   useEffect(() => {
@@ -183,7 +181,7 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
   };
 
   return (
-    <div className="bg-white dark:bg-neutral-800 dark:border-neutral-700 rounded-xl border flex flex-col h-full">
+    <div className="flex flex-col h-full">
       <style>{`
         @keyframes slideInFromBottom {
           0% {
@@ -245,113 +243,101 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
             </p>
           </div>
         ) : (
-          <>
-            {/* Conversation Groups */}
-            {conversationGroups.map((group, index) => {
-              const isLastGroup = index === conversationGroups.length - 1;
-              const isStreaming = group.aiMessage && streamingMessageIds.has(group.aiMessage.id);
-              
-              return (
-                <div
-                  key={group.id}
-                  ref={isLastGroup ? activeGroupRef : null}
-                  className="conversation-group relative"
-                  style={{ 
-                    minHeight: isLastGroup ? `${containerHeight}px` : 'auto',
-                    height: isLastGroup ? `${containerHeight}px` : 'auto',
-                    animation: isLastGroup ? 'slideInFromBottom 1.2s ease-out forwards' : 'none'
-                  }}
-                >
-                  <div 
-                    className={`group-content flex flex-col justify-start ${
-                      isLastGroup ? 'h-full overflow-y-auto py-6 pb-[100px]' : 'py-6'
-                    }`}
+          <div
+            style={{
+              height: `${virtualizer.getTotalSize()}px`,
+              width: '100%',
+              position: 'relative',
+            }}
+          >
+            {/* Container for all visible items with proper transform */}
+            <div
+              style={{
+                position: 'absolute',
+                top: 0,
+                left: 0,
+                width: '100%',
+                transform: `translateY(${virtualizer.getVirtualItems()[0]?.start ?? 0}px)`,
+              }}
+            >
+              {/* Only render visible conversation groups */}
+              {virtualizer.getVirtualItems().map((virtualItem) => {
+                const group = conversationGroups[virtualItem.index];
+                const isLastGroup = virtualItem.index === conversationGroups.length - 1;
+                const isStreaming = group.aiMessage && streamingMessageIds.has(group.aiMessage.id);
+                
+                return (
+                  <div
+                    key={virtualItem.key}
+                    data-index={virtualItem.index}
+                    ref={virtualizer.measureElement}
+                    className="conversation-group"
+                    style={{
+                      minHeight: isLastGroup ? `${containerHeight}px` : 'auto',
+                      animation: isLastGroup && conversationGroups.length > prevGroupsLengthRef.current ? 'slideInFromBottom 1.2s ease-out forwards' : 'none'
+                    }}
                   >
-                    {/* User Message */}
-                    {group.userMessage && (
-                      <div className="max-w-4xl w-full mx-auto px-12">
-                        <MessageComponent
-                          message={group.userMessage}
-                          isStreaming={false}
-                          copiedMessageId={copiedMessageId}
-                          onCopyMessage={handleCopyMessage}
-                          onOpenInFile={onOpenInFile}
-                          slides={slides}
-                        />
-                      </div>
-                    )}
-                    
-                    {/* AI Message */}
-                    {group.aiMessage && (
-                      <div className="max-w-4xl w-full mx-auto px-12 mt-4">
-                        <MessageComponent
-                          message={group.aiMessage}
-                          isStreaming={isStreaming || false}
-                          copiedMessageId={copiedMessageId}
-                          onCopyMessage={handleCopyMessage}
-                          onOpenInFile={onOpenInFile}
-                          slides={slides}
-                        />
-                      </div>
-                    )}
-                    
-                    {/* Loading indicator for active group */}
-                    {isLastGroup && isAiLoading && !group.aiMessage && (
-                      <div className="max-w-4xl w-full mx-auto px-12 mt-4">
-                        <div className="flex justify-start">
-                          <div className="flex space-x-1 items-center">
-                            <div className="w-2 h-2 bg-[#F97316] dark:bg-[#F97316]/80 rounded-full animate-bounce"></div>
-                            <div className="w-2 h-2 bg-[#F97316] dark:bg-[#F97316]/80 rounded-full animate-bounce" style={{ animationDelay: '0.1s' }}></div>
-                            <div className="w-2 h-2 bg-[#F97316] dark:bg-[#F97316]/80 rounded-full animate-bounce" style={{ animationDelay: '0.2s' }}></div>
+                    <div 
+                      ref={isLastGroup ? activeGroupRef : null}
+                      className={`group-content flex flex-col justify-start ${
+                        isLastGroup ? 'py-6 pb-[150px]' : 'py-6'
+                      }`}
+                    >
+                      {/* User Message */}
+                      {group.userMessage && (
+                        <div className="max-w-4xl w-full mx-auto px-8">
+                          <MessageComponent
+                            message={group.userMessage}
+                            isStreaming={false}
+                            copiedMessageId={copiedMessageId}
+                            onCopyMessage={handleCopyMessage}
+                            onOpenInFile={onOpenInFile}
+                            slides={slides}
+                          />
+                        </div>
+                      )}
+                      
+                      {/* AI Message */}
+                      {group.aiMessage && (
+                        <div className="max-w-4xl w-full mx-auto px-8 mt-4">
+                          <MessageComponent
+                            message={group.aiMessage}
+                            isStreaming={isStreaming || false}
+                            copiedMessageId={copiedMessageId}
+                            onCopyMessage={handleCopyMessage}
+                            onOpenInFile={onOpenInFile}
+                            slides={slides}
+                          />
+                        </div>
+                      )}
+                      
+                      {/* Loading indicator for active group */}
+                      {isLastGroup && isAiLoading && !group.aiMessage && (
+                        <div className="max-w-4xl w-full mx-auto px-8 mt-4">
+                          <div className="flex justify-start">
+                            <div className="flex space-x-1 items-center">
+                              <div className="w-2 h-2 bg-[#F97316] dark:bg-[#F97316]/80 rounded-full animate-bounce"></div>
+                              <div className="w-2 h-2 bg-[#F97316] dark:bg-[#F97316]/80 rounded-full animate-bounce" style={{ animationDelay: '0.1s' }}></div>
+                              <div className="w-2 h-2 bg-[#F97316] dark:bg-[#F97316]/80 rounded-full animate-bounce" style={{ animationDelay: '0.2s' }}></div>
+                            </div>
                           </div>
                         </div>
-                      </div>
-                    )}
+                      )}
+                    </div>
+                    
                   </div>
-                  
-                </div>
-              );
-            })}
-          </>
+                );
+              })}
+            </div>
+          </div>
         )}
+        
+        {/* Bottom spacer to account for overlapping input */}
+        <div className="h-20 flex-shrink-0" aria-hidden="true" />
       </div>
-
-      {/* ChatGPT-style input isolation - positioned outside scroll container */}
-      <ChatInputOptimized
-        ref={chatInputRef}
-        onSubmit={(message) => {
-          // Create a fake event with the message
-          const fakeEvent = {
-            preventDefault: () => {},
-            currentMessage: message
-          } as any;
-          onSubmit(fakeEvent);
-        }}
-        isAiLoading={isAiLoading}
-        selectedTextForChat={selectedTextForChat}
-        onClearSelectedText={onClearSelectedText}
-        isPdfPreviewOpen={isPdfPreviewOpen}
-        currentPdfPage={currentPdfPage}
-        onClearChat={onClearChat}
-        files={slides?.map(slide => ({
-          id: slide.id,
-          name: slide.originalFileName,
-          type: 'PDF'
-        })) || []}
-        courses={courses}
-        indicatorItems={indicatorItems}
-        onIndicatorItemsChange={onIndicatorItemsChange}
-        value={inputValue}
-        onValueChange={onInputValueChange}
-        documents={slides?.map(slide => ({
-          id: slide.id,
-          name: slide.originalFileName
-        })) || []}
-        onOpenDocument={onOpenDocument}
-        onRemoveDocument={onRemoveDocument}
-        onRenameDocument={onRenameDocument}
-        onFilesUploaded={onFilesUploaded}
-      />
     </div>
   );
 };
+
+// Export the component directly as it no longer needs special memoization
+export const ChatInterface = memo(ChatInterfaceComponent);

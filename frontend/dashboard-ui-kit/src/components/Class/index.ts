@@ -1,6 +1,7 @@
 export { FileManager } from './FileManager';
 export { DocumentPreview } from './DocumentPreview';
 export { ChatInterface } from './ChatInterface';
+export { ChatContainer } from './ChatContainer';
 export { MarkdownRenderer } from './MarkdownRenderer';
 export { RemoveDocumentModal } from './RemoveDocumentModal';
 export { EditDocumentModal } from './EditDocumentModal';
@@ -13,5 +14,7 @@ export { FileSuggestions } from './FileSuggestions';
 export { PriorityDocumentsList } from './PriorityDocumentsList';
 export { ChatInputOptimized } from './ChatInputOptimized';
 export type { ChatInputHandle } from './ChatInputOptimized';
+export { ChatInputStandalone } from './ChatInputStandalone';
+export type { ChatInputStandaloneHandle } from './ChatInputStandalone';
 export { IndicatorsList } from './IndicatorsList';
 export type { IndicatorItem } from './IndicatorsList'; 

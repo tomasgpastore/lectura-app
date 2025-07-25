@@ -4,7 +4,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Header } from '../components/Layout/Header';
 import { 
   FileManager, 
-  ChatInterface, 
+  ChatContainer, 
   RemoveDocumentModal,
   EditDocumentModal,
   DeleteErrorModal
@@ -15,7 +15,7 @@ import { useChatManager } from '../lib/hooks/useChatManager';
 import { courseApi, slideApi } from '../lib/api/api';
 
 // Memoized components to prevent unnecessary re-renders
-const MemoizedChatInterface = React.memo(ChatInterface);
+const MemoizedChatContainer = React.memo(ChatContainer);
 const MemoizedFileManager = React.memo(FileManager);
 
 export const Class: React.FC = () => {
@@ -124,24 +124,14 @@ export const Class: React.FC = () => {
   };
 
   // Handle form submission with combined text
-  const handleCombinedSubmit = (e: React.FormEvent & { currentMessage?: string }, inputValue: string, selectedText?: string) => {
-    e.preventDefault();
+  const handleCombinedSubmit = (message: string) => {
+    // The message already contains the selected text from ChatInputStandalone
+    // so we don't need to add it again here
+    const trimmedMessage = message.trim();
     
-    // Use the message from the event if available (from ChatInputOptimized)
-    const actualInputValue = e.currentMessage !== undefined ? e.currentMessage : inputValue;
-    
-    // Combine the input message and selected text
-    let combinedMessage = actualInputValue.trim();
-    
-    if (selectedText && selectedText.trim()) {
-      combinedMessage = combinedMessage 
-        ? `${combinedMessage}\n\n"${selectedText}"`
-        : `"${selectedText}"`;
-    }
-    
-    if (combinedMessage) {
+    if (trimmedMessage) {
       // Use the new method to send with custom message
-      chatManager.handleSubmitWithMessage(combinedMessage);
+      chatManager.handleSubmitWithMessage(trimmedMessage);
       
       // Clear both inputs
       chatManager.handleInputChange('');
@@ -273,22 +263,14 @@ export const Class: React.FC = () => {
           />
         )}
 
-        {/* Document Preview Section - replace file upload when document is selected */}
-        {documentManager.selectedDocument && (
-          <div style={{ display: 'flex', height: '100%', width: '100%' }}>
-            <DocumentPreview
-              document={documentManager.selectedDocument}
-              onClose={() => documentManager.setSelectedDocument(null)}
-              onSetSelectedTextForChat={setSelectedTextForChatHandler}
-              onPageChange={documentManager.setCurrentPage}
-              initialPage={documentManager.currentPage}
-              courseId={id}
-            >
-              <MemoizedChatInterface
+        {/* Create the chat container once */}
+        {(() => {
+          const chatContainer = (
+            <MemoizedChatContainer
                 key="chat-interface"
                 messages={chatManager.messages}
                 isAiLoading={chatManager.isAiLoading}
-                onSubmit={(e) => handleCombinedSubmit(e, chatManager.inputMessage, selectedTextForChat)}
+                onSubmit={handleCombinedSubmit}
                 onClearChat={chatManager.handleClearChat}
                 streamingMessageIds={chatManager.streamingMessageIds}
                 onOpenInFile={handleOpenInFile}
@@ -296,25 +278,22 @@ export const Class: React.FC = () => {
                 selectedTextForChat={selectedTextForChat}
                 onClearSelectedText={clearSelectedText}
                 courses={allCourses}
-                isPdfPreviewOpen={true}
-                currentPdfPage={documentManager.currentPage}
-                indicatorItems={chatIndicatorItems}
+                isPdfPreviewOpen={!!documentManager.selectedDocument}
                 onIndicatorItemsChange={setChatIndicatorItems}
-                inputValue={chatInputValue}
-                onInputValueChange={setChatInputValue}
-                onOpenDocument={(documentId) => {
+                documents={documentManager.documents}
+                onOpenDocument={(documentId: string) => {
                   const doc = documentManager.documents.find(d => d.id === documentId);
                   if (doc) {
                     documentManager.handlePreviewDocument(doc);
                   }
                 }}
-                onRemoveDocument={(documentId) => {
+                onRemoveDocument={(documentId: string) => {
                   const doc = documentManager.documents.find(d => d.id === documentId);
                   if (doc) {
                     documentManager.handleDeleteDocumentDirect(doc);
                   }
                 }}
-                onRenameDocument={async (documentId, newName) => {
+                onRenameDocument={async (documentId: string, newName: string) => {
                   const doc = documentManager.documents.find(d => d.id === documentId);
                   if (!doc) return;
                   
@@ -415,148 +394,33 @@ export const Class: React.FC = () => {
                     }
                   }
                 }}
-              />
-            </DocumentPreview>
-          </div>
-        )}
-
-        {/* Chat Only Section - when no document selected */}
-        {!documentManager.selectedDocument && (
-          <div className="flex-1 h-full pr-2">
-            <MemoizedChatInterface
-              key="chat-interface"
-              messages={chatManager.messages}
-              isAiLoading={chatManager.isAiLoading}
-              onSubmit={(e) => handleCombinedSubmit(e, chatManager.inputMessage, selectedTextForChat)}
-              onClearChat={chatManager.handleClearChat}
-              streamingMessageIds={chatManager.streamingMessageIds}
-              onOpenInFile={handleOpenInFile}
-              slides={allSlides}
-              selectedTextForChat={selectedTextForChat}
-              onClearSelectedText={clearSelectedText}
-              courses={allCourses}
-              isPdfPreviewOpen={false}
-              currentPdfPage={undefined}
-              indicatorItems={chatIndicatorItems}
-              onIndicatorItemsChange={setChatIndicatorItems}
-              inputValue={chatInputValue}
-              onInputValueChange={setChatInputValue}
-              onOpenDocument={(documentId) => {
-                const doc = documentManager.documents.find(d => d.id === documentId);
-                if (doc) {
-                  documentManager.handlePreviewDocument(doc);
-                }
-              }}
-              onRemoveDocument={(documentId) => {
-                const doc = documentManager.documents.find(d => d.id === documentId);
-                if (doc) {
-                  documentManager.handleDeleteDocumentDirect(doc);
-                }
-              }}
-              onRenameDocument={async (documentId, newName) => {
-                const doc = documentManager.documents.find(d => d.id === documentId);
-                if (!doc) return;
-                
-                // Get the file extension from the original name
-                const fileExtension = doc.name.split('.').pop() || '';
-                
-                // Add the extension to the new name
-                const fullNewName = fileExtension ? `${newName}.${fileExtension}` : newName;
-                
-                // Check for duplicate names first
-                const existingDoc = documentManager.documents.find(
-                  d => d.id !== doc.id && d.name.toLowerCase() === fullNewName.toLowerCase()
-                );
-                
-                if (existingDoc) {
-                  alert(`A file with the name "${fullNewName}" already exists`);
-                  return;
-                }
-                
-                try {
-                  // Directly call the API to rename
-                  await slideApi.update(id!, doc.id, { originalFileName: fullNewName });
-                  
-                  // Refresh the documents list
-                  queryClient.invalidateQueries({ queryKey: ['slides', id] });
-                  
-                  // Update selected document if it's the one being renamed
-                  if (documentManager.selectedDocument?.id === doc.id) {
-                    documentManager.setSelectedDocument({ 
-                      ...documentManager.selectedDocument, 
-                      name: fullNewName 
-                    });
-                  }
-                } catch (error: any) {
-                  alert(error.message || 'Failed to rename document');
-                }
-              }}
-              onFilesUploaded={async (files: File[]) => {
-                // Check for files that already exist
-                const existingFileNames = documentManager.documents.map(doc => ({ 
-                  name: doc.name.toLowerCase(), 
-                  doc 
-                }));
-                
-                const filesToProcess = files.map(file => {
-                  const existing = existingFileNames.find(item => item.name === file.name.toLowerCase());
-                  return { file, existingDoc: existing?.doc };
-                });
-                
-                const newFiles = filesToProcess.filter(item => !item.existingDoc).map(item => item.file);
-                
-                // Upload only new files (without showing duplicate error)
-                if (newFiles.length > 0) {
-                  await documentManager.handleFilesUploaded(newFiles);
-                  
-                  // Wait for the query to be invalidated and refetched
-                  await queryClient.invalidateQueries({ queryKey: ['slides', id] });
-                  
-                  // Wait a bit more for the UI to update
-                  await new Promise(resolve => setTimeout(resolve, 1000));
-                }
-                
-                // Re-fetch documents after upload
-                const updatedSlides = await slideApi.getAll(id!);
-                
-                // Add all files to priority list
-                for (const { file, existingDoc } of filesToProcess) {
-                  let doc = existingDoc;
-                  
-                  // If it was a new file, find it in the updated slides
-                  if (!doc && updatedSlides) {
-                    const matchingSlide = updatedSlides.find(slide => 
-                      slide.originalFileName.toLowerCase() === file.name.toLowerCase()
-                    );
-                    if (matchingSlide) {
-                      doc = {
-                        id: matchingSlide.id,
-                        name: matchingSlide.originalFileName,
-                        type: matchingSlide.contentType,
-                        size: matchingSlide.fileSize,
-                        uploadedAt: new Date(matchingSlide.uploadTimestamp)
-                      };
-                    }
-                  }
-                  
-                  if (doc) {
-                    // Check if not already in indicator items
-                    const currentItems = chatIndicatorItems;
-                    if (!currentItems.some(item => item.id === doc.id)) {
-                      const newItem = {
-                        id: doc.id,
-                        type: 'document' as const,
-                        name: doc.name,
-                        removable: true
-                      };
-                      setChatIndicatorItems([...currentItems, newItem]);
-                    }
-                  }
-                }
-              }}
             />
-          </div>
-        )}
+          );
+
+          // Render based on whether document is selected
+          if (documentManager.selectedDocument) {
+            return (
+              <div style={{ display: 'flex', height: '100%', width: '100%' }}>
+                <DocumentPreview
+                  document={documentManager.selectedDocument}
+                  onClose={() => documentManager.setSelectedDocument(null)}
+                  onSetSelectedTextForChat={setSelectedTextForChatHandler}
+                  onPageChange={documentManager.setCurrentPage}
+                  initialPage={documentManager.currentPage}
+                  courseId={id}
+                >
+                  {chatContainer}
+                </DocumentPreview>
+              </div>
+            );
+          } else {
+            return (
+              <div className="flex-1 h-full pr-2">
+                {chatContainer}
+              </div>
+            );
+          }
+        })()}
       </div>
 
       {/* Remove Document Modal */}
