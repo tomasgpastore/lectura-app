@@ -32,8 +32,10 @@ interface DocumentPreviewProps {
   children?: React.ReactNode;
 }
 
-export const DocumentPreview = ({ document: doc, onClose, onAddToChat, onSetSelectedTextForChat, children }: DocumentPreviewProps) => {
-  const { id: courseId } = useParams<{ id: string }>();
+export const DocumentPreview = ({ document: doc, onClose, onAddToChat, onSetSelectedTextForChat, onPageChange, initialPage, courseId: propsCourseId, children }: DocumentPreviewProps) => {
+  const { id: paramsCourseId } = useParams<{ id: string }>();
+  // Use the courseId from props if provided, otherwise fall back to URL params
+  const courseId = propsCourseId || paramsCourseId;
   
   // Create plugins
   const pageNavigationPluginInstance = pageNavigationPlugin();
@@ -48,7 +50,7 @@ export const DocumentPreview = ({ document: doc, onClose, onAddToChat, onSetSele
   const selectionModePluginInstance = selectionModePlugin();
   
   // State management
-  const [currentPage, setCurrentPage] = useState<number>(1);
+  const [currentPage, setCurrentPage] = useState<number>(initialPage || 1);
   const [numPages, setNumPages] = useState<number>(0);
   const [showBookmarks, setShowBookmarks] = useState<boolean>(false);
   const [isEditingPage, setIsEditingPage] = useState<boolean>(false);
@@ -65,40 +67,24 @@ export const DocumentPreview = ({ document: doc, onClose, onAddToChat, onSetSele
   // Use React Query to fetch presigned URL - this will deduplicate requests
   const { data: pdfUrl, isLoading: loading, error: queryError, refetch } = useQuery({
     queryKey: ['presigned-url', courseId, doc?.id],
-    queryFn: () => slideApi.getPresignedUrl(courseId!, doc.id),
+    queryFn: () => {
+      return slideApi.getPresignedUrl(courseId!, doc.id);
+    },
     enabled: !!courseId && !!doc?.id,
     staleTime: 5 * 60 * 1000, // Consider URL fresh for 5 minutes
     gcTime: 10 * 60 * 1000, // Keep in cache for 10 minutes
     refetchOnWindowFocus: false,
     retry: 1,
   });
-
-  const error = queryError ? 'Failed to load document' : null;
-
-  // Function to get localStorage key for document positions
-  const getDocumentPositionsKey = () => {
-    return `documentPositions_${courseId}`;
-  };
-
-  // Function to save document position to localStorage
-  const saveDocumentPosition = (docId: string, page: number) => {
-    const key = getDocumentPositionsKey();
-    const existingPositions = localStorage.getItem(key);
-    const positions = existingPositions ? JSON.parse(existingPositions) : {};
-    positions[docId] = page;
-    localStorage.setItem(key, JSON.stringify(positions));
-  };
-
-  // Function to load document position from localStorage
-  const loadDocumentPosition = (docId: string): number => {
-    const key = getDocumentPositionsKey();
-    const existingPositions = localStorage.getItem(key);
-    if (existingPositions) {
-      const positions = JSON.parse(existingPositions);
-      return positions[docId] || 1;
+  
+  // Handle document not found error
+  useEffect(() => {
+    if (queryError && (queryError as any)?.response?.status === 404) {
+      onClose();
     }
-    return 1;
-  };
+  }, [queryError, onClose]);
+
+  const error = queryError ? (queryError as any)?.response?.status === 404 ? 'Document not found' : 'Failed to load document' : null;
 
   // Reset initial load flag when document changes
   useEffect(() => {
@@ -272,7 +258,8 @@ export const DocumentPreview = ({ document: doc, onClose, onAddToChat, onSetSele
   // Save current page position when page changes (but not during initial load)
   useEffect(() => {
     if (doc?.id && currentPage > 0 && !isInitialLoad) {
-      saveDocumentPosition(doc.id, currentPage);
+      // Don't save to localStorage - let parent component handle state
+      // saveDocumentPosition(doc.id, currentPage);
     }
   }, [currentPage, doc?.id, isInitialLoad]);
 
@@ -300,7 +287,8 @@ export const DocumentPreview = ({ document: doc, onClose, onAddToChat, onSetSele
   // Handle close with saving position
   const handleClose = () => {
     if (doc?.id && currentPage > 0) {
-      saveDocumentPosition(doc.id, currentPage);
+      // Don't save to localStorage - let parent component handle state
+      // saveDocumentPosition(doc.id, currentPage);
     }
     onClose();
   };
@@ -484,13 +472,13 @@ export const DocumentPreview = ({ document: doc, onClose, onAddToChat, onSetSele
                 // Initialize zoom state
                 setCurrentZoom(1);
                 
-                // Load saved page position and navigate to it
-                if (doc?.id && jumpToPage) {
-                  const savedPage = loadDocumentPosition(doc.id);
-                  setCurrentPage(savedPage); // Set the current page to saved page
-                  if (savedPage > 1 && savedPage <= e.doc.numPages) {
+                // Use initialPage prop instead of localStorage
+                if (jumpToPage) {
+                  const targetPage = initialPage || 1;
+                  setCurrentPage(targetPage);
+                  if (targetPage > 1 && targetPage <= e.doc.numPages) {
                     setTimeout(() => {
-                      jumpToPage(savedPage - 1); // jumpToPage is 0-indexed
+                      jumpToPage(targetPage - 1); // jumpToPage is 0-indexed
                       // Reset initial load flag after navigating
                       setTimeout(() => {
                         setIsInitialLoad(false);
@@ -505,7 +493,9 @@ export const DocumentPreview = ({ document: doc, onClose, onAddToChat, onSetSele
                 }
               }}
               onPageChange={(e) => {
-                setCurrentPage(e.currentPage + 1); // Convert from 0-indexed
+                const newPage = e.currentPage + 1; // Convert from 0-indexed
+                setCurrentPage(newPage);
+                onPageChange?.(newPage);
               }}
               onZoom={(e) => {
                 setCurrentZoom(e.scale);
@@ -714,13 +704,13 @@ export const DocumentPreview = ({ document: doc, onClose, onAddToChat, onSetSele
                 // Initialize zoom state
                 setCurrentZoom(1);
                 
-                // Load saved page position and navigate to it
-                if (doc?.id && jumpToPage) {
-                  const savedPage = loadDocumentPosition(doc.id);
-                  setCurrentPage(savedPage); // Set the current page to saved page
-                  if (savedPage > 1 && savedPage <= e.doc.numPages) {
+                // Use initialPage prop instead of localStorage
+                if (jumpToPage) {
+                  const targetPage = initialPage || 1;
+                  setCurrentPage(targetPage);
+                  if (targetPage > 1 && targetPage <= e.doc.numPages) {
                     setTimeout(() => {
-                      jumpToPage(savedPage - 1); // jumpToPage is 0-indexed
+                      jumpToPage(targetPage - 1); // jumpToPage is 0-indexed
                       // Reset initial load flag after navigating
                       setTimeout(() => {
                         setIsInitialLoad(false);
@@ -735,7 +725,9 @@ export const DocumentPreview = ({ document: doc, onClose, onAddToChat, onSetSele
                 }
               }}
               onPageChange={(e) => {
-                setCurrentPage(e.currentPage + 1); // Convert from 0-indexed
+                const newPage = e.currentPage + 1; // Convert from 0-indexed
+                setCurrentPage(newPage);
+                onPageChange?.(newPage);
               }}
               onZoom={(e) => {
                 setCurrentZoom(e.scale);

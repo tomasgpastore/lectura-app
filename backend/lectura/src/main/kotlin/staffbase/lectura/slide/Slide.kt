@@ -1,5 +1,6 @@
 package staffbase.lectura.slide
 
+import org.bson.types.ObjectId
 import org.springframework.data.annotation.Id
 import org.springframework.data.mongodb.core.mapping.Document
 import java.time.Instant
@@ -9,7 +10,7 @@ import java.util.UUID
 @Document(collection = "slides")
 data class Slide(
     @Id
-    val id: String = UUID.randomUUID().toString(), // argument for ai service
+    val id: String = UUID.randomUUID().toString(),
     var originalFileName: String,
     val contentType: String,
     val fileSize: Long,

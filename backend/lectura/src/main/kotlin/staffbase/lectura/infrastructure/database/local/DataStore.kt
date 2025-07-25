@@ -12,6 +12,5 @@ object DataStore {
     val courses = mutableListOf<Course>()
     val slides = mutableListOf<Slide>()
     val authtokens = mutableListOf<AuthToken>()
-    val messages = ConcurrentHashMap<String, MutableList<ChatMessage>>()
-
+    val messages: ConcurrentHashMap<String, MutableList<ChatMessage>> = ConcurrentHashMap()
 }

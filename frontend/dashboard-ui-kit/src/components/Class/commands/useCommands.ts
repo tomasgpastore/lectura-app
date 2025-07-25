@@ -1,9 +1,10 @@
 import { useState, useCallback, useMemo } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 import { useTheme } from '../../../contexts/ThemeContext';
 import { useAuth } from '../../../contexts/AuthContext';
 import { Course } from '../../../types';
 import { createCommands, CommandWithParameter } from './commandDefinitions';
+import { useClassStateStore } from '../../../stores/classStateStore';
 
 interface Document {
   id: string;
@@ -21,6 +22,7 @@ interface UseCommandsProps {
   textareaRef: React.RefObject<HTMLTextAreaElement>;
   resetHeight: () => void;
   addToHistory?: (command: string) => void;
+  onSaveCurrentState?: () => void;
 }
 
 export const useCommands = ({
@@ -34,6 +36,7 @@ export const useCommands = ({
   textareaRef,
   resetHeight,
   addToHistory,
+  onSaveCurrentState,
 }: UseCommandsProps) => {
   const { isDark, toggleTheme } = useTheme();
   const { logout } = useAuth();
@@ -190,6 +193,11 @@ export const useCommands = ({
       addToHistory(commandText);
     }
     
+    // Save current state before navigating away
+    if (onSaveCurrentState) {
+      onSaveCurrentState();
+    }
+    
     navigate(`/class/${course.id}`);
     setInternalValue('');
     setShowClassSuggestions(false);
@@ -199,7 +207,7 @@ export const useCommands = ({
       textareaRef.current.value = '';
       resetHeight();
     }
-  }, [navigate, setInternalValue, resetHeight, textareaRef, addToHistory]);
+  }, [navigate, setInternalValue, resetHeight, textareaRef, addToHistory, onSaveCurrentState]);
 
   // Handle document selection
   const selectDocument = useCallback((document: Document) => {

@@ -13,7 +13,9 @@ import staffbase.lectura.dto.ai.ChatOutboundDTO
 import staffbase.lectura.dto.ai.ChatResponseDTO
 import java.net.HttpURLConnection
 import com.fasterxml.jackson.databind.ObjectMapper
+import staffbase.lectura.ai.chat.ChatTurn
 import java.net.URI
+import java.time.Instant
 import java.time.LocalDateTime
 
 data class SlideProcessingRequest(
@@ -235,7 +237,7 @@ class AiChatService(
             val userMessage = ChatMessage(
                 role = "user",
                 content = userPrompt,
-                timestamp = LocalDateTime.now()
+                timestamp = Instant.now()
             )
 
             // Save AI response
@@ -243,9 +245,17 @@ class AiChatService(
                 role = "assistant",
                 content = aiResponse,
                 sources = sources,
-                timestamp = LocalDateTime.now()
+                timestamp = Instant.now()
             )
-            chatService.addMessage(userId, courseId, userMessage, assistantMessage)
+
+            val chatTurn = ChatTurn(
+                userMessage = userMessage,
+                userId = userId,
+                courseId = courseId,
+                assistantMessage = assistantMessage
+            )
+
+            chatService.addMessage(userId, courseId, chatTurn)
             
         } catch (e: Exception) {
             // Log error but don't fail the stream
