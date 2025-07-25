@@ -9,6 +9,7 @@ import staffbase.lectura.dto.slide.PatchSlideDTO
 import staffbase.lectura.ai.EmbeddingProcessingService
 import java.util.UUID
 import org.apache.pdfbox.pdmodel.PDDocument
+import org.bson.types.ObjectId
 
 
 @Service

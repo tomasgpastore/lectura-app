@@ -112,23 +112,33 @@ const ChatInterfaceComponent: React.FC<ChatInterfaceProps> = ({
   }, []);
 
   // Track previous groups length to detect new groups
-  const prevGroupsLengthRef = useRef(conversationGroups.length);
+  const prevGroupsLengthRef = useRef(0);
   
-  // Initialize the virtualizer
+  // Initialize the virtualizer for efficient rendering
   const virtualizer = useVirtualizer({
     count: conversationGroups.length,
     getScrollElement: () => messagesContainerRef.current,
-    estimateSize: useCallback((index: number) => {
-      // Last group has containerHeight, others have estimated height
-      return index === conversationGroups.length - 1 ? containerHeight || 500 : 200;
-    }, [conversationGroups.length, containerHeight]),
+    estimateSize: useCallback(() => {
+      // Estimate height for each conversation group
+      return 200;
+    }, []),
     overscan: 5, // Render 5 extra items on each side
+    scrollMargin: 0,
+    scrollPaddingStart: 0,
+    scrollPaddingEnd: 0,
+    getItemKey: useCallback((index: number) => `group-${index}`, []),
   });
   
-  // Scroll to bottom when new groups are added
+  // Effect to handle new messages only (not initial mount)
   useEffect(() => {
-    if (conversationGroups.length > prevGroupsLengthRef.current && conversationGroups.length > 0) {
-      // New group was added - scroll to bottom
+    if (!messagesContainerRef.current || conversationGroups.length === 0) return;
+    
+    const isMount = prevGroupsLengthRef.current === 0;
+    const isNewMessage = conversationGroups.length > prevGroupsLengthRef.current;
+    
+    // Only scroll for new messages, not on mount/switch
+    if (!isMount && isNewMessage) {
+      // Smooth scroll for new messages
       virtualizer.scrollToIndex(conversationGroups.length - 1, {
         align: 'end',
         behavior: 'smooth'
@@ -153,6 +163,7 @@ const ChatInterfaceComponent: React.FC<ChatInterfaceProps> = ({
     }
   }, [isAiLoading, messages]);
 
+  
   // Close menu when clicking outside
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -265,6 +276,7 @@ const ChatInterfaceComponent: React.FC<ChatInterfaceProps> = ({
                 const group = conversationGroups[virtualItem.index];
                 const isLastGroup = virtualItem.index === conversationGroups.length - 1;
                 const isStreaming = group.aiMessage && streamingMessageIds.has(group.aiMessage.id);
+                const isNewGroup = virtualItem.index >= prevGroupsLengthRef.current;
                 
                 return (
                   <div
@@ -274,7 +286,7 @@ const ChatInterfaceComponent: React.FC<ChatInterfaceProps> = ({
                     className="conversation-group"
                     style={{
                       minHeight: isLastGroup ? `${containerHeight}px` : 'auto',
-                      animation: isLastGroup && conversationGroups.length > prevGroupsLengthRef.current ? 'slideInFromBottom 1.2s ease-out forwards' : 'none'
+                      animation: isLastGroup && isNewGroup ? 'slideInFromBottom 1.2s ease-out forwards' : 'none'
                     }}
                   >
                     <div 

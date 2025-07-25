@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useParams } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Header } from '../components/Layout/Header';
@@ -13,6 +13,7 @@ import { DocumentPreview } from '../components/Class/DocumentPreview';
 import { useDocumentManager } from '../lib/hooks/useDocumentManager';
 import { useChatManager } from '../lib/hooks/useChatManager';
 import { courseApi, slideApi } from '../lib/api/api';
+import { useClassStateStore } from '../stores/classStateStore';
 
 // Memoized components to prevent unnecessary re-renders
 const MemoizedChatContainer = React.memo(ChatContainer);
@@ -21,6 +22,11 @@ const MemoizedFileManager = React.memo(FileManager);
 export const Class: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const queryClient = useQueryClient();
+  const { getClassState, saveClassState } = useClassStateStore();
+  const previousClassIdRef = useRef<string | undefined>();
+  const previousStateRef = useRef<any>({});
+  
+  // Initialize state - we'll update these when id changes
   const [isFileManagerCollapsed, setIsFileManagerCollapsed] = useState(false);
   const [selectedTextForChat, setSelectedTextForChat] = useState<string>('');
   const [chatIndicatorItems, setChatIndicatorItems] = useState<Array<{
@@ -64,14 +70,17 @@ export const Class: React.FC = () => {
     refetchOnWindowFocus: false,
   });
 
+  // Get stored state for current class
+  const storedState = id ? getClassState(id) : undefined;
+  
   // Custom hooks for functionality
-  const documentManager = useDocumentManager(id, allSlides);
+  const documentManager = useDocumentManager(id, allSlides, storedState?.selectedDocumentId, storedState?.currentPage);
   // Extract document IDs from indicator items (only document type, not current-page)
   const priorityDocumentIds = chatIndicatorItems
     .filter(item => item.type === 'document')
     .map(item => item.id);
     
-  const chatManager = useChatManager(id, documentManager.selectedDocument, priorityDocumentIds);
+  const chatManager = useChatManager(id, documentManager.selectedDocument, priorityDocumentIds, storedState?.messages);
 
 
   // Handle opening file from source citation
@@ -133,29 +142,99 @@ export const Class: React.FC = () => {
       // Use the new method to send with custom message
       chatManager.handleSubmitWithMessage(trimmedMessage);
       
-      // Clear both inputs
-      chatManager.handleInputChange('');
+      // Clear selected text
       clearSelectedText();
-      setChatInputValue('');
+      // Note: chatInputValue will be cleared by the ChatInputStandalone component itself
     }
   };
 
   // Show file management only when no document is previewed
   const showFileManagement = !documentManager.selectedDocument;
 
-  // Debug logging in development
-  useEffect(() => {
-    if (process.env.NODE_ENV === 'development') {
-      console.log('Class component state:', {
-        id,
-        courseLoading,
-        course: !!course,
-        displayCourse: !!displayCourse,
-        courseError: !!courseError,
-        slidesLoading
-      });
+  // Function to save current state
+  const saveCurrentState = useCallback(() => {
+    if (id) {
+      const stateToSave = {
+        // Document state
+        selectedDocumentId: documentManager.selectedDocument?.id,
+        currentPage: documentManager.currentPage,
+        
+        // Chat state
+        messages: chatManager.messages,
+        streamingMessageIds: chatManager.streamingMessageIds,
+        
+        // UI state
+        isFileManagerCollapsed,
+        chatInputValue,
+        selectedTextForChat,
+        chatIndicatorItems,
+      };
+      
+      saveClassState(id, stateToSave);
     }
-  }, [id, courseLoading, course, displayCourse, courseError, slidesLoading]);
+  }, [id, documentManager.selectedDocument, documentManager.currentPage, 
+      chatManager.messages, chatManager.streamingMessageIds,
+      isFileManagerCollapsed, chatInputValue, selectedTextForChat, 
+      chatIndicatorItems, saveClassState]);
+  
+  // Save state before ID changes
+  useEffect(() => {
+    if (previousClassIdRef.current && previousClassIdRef.current !== id) {
+      // Save the PREVIOUS class state before switching
+      const previousId = previousClassIdRef.current;
+      const stateToSave = previousStateRef.current;
+      
+      saveClassState(previousId, stateToSave);
+      
+      // Clear the previousStateRef to prevent contamination
+      previousStateRef.current = {};
+    }
+  }, [id, saveClassState]);
+  
+  // Track current state continuously
+  useEffect(() => {
+    previousStateRef.current = {
+      selectedDocumentId: documentManager.selectedDocument?.id,
+      currentPage: documentManager.currentPage,
+      messages: chatManager.messages,
+      streamingMessageIds: chatManager.streamingMessageIds,
+      isFileManagerCollapsed,
+      chatInputValue,
+      selectedTextForChat,
+      chatIndicatorItems,
+    };
+  }, [documentManager.selectedDocument, documentManager.currentPage,
+      chatManager.messages, chatManager.streamingMessageIds,
+      isFileManagerCollapsed, chatInputValue, 
+      selectedTextForChat, chatIndicatorItems]);
+  
+  // Restore state when class ID changes
+  useEffect(() => {
+    if (id && id !== previousClassIdRef.current) {
+      
+      // Invalidate document URL queries to prevent cross-class contamination
+      queryClient.invalidateQueries({ queryKey: ['presigned-url'] });
+      
+      const storedState = getClassState(id);
+      
+      if (storedState) {
+        // Restore UI state
+        setIsFileManagerCollapsed(storedState.isFileManagerCollapsed);
+        setSelectedTextForChat(storedState.selectedTextForChat);
+        setChatIndicatorItems(storedState.chatIndicatorItems);
+        setChatInputValue(storedState.chatInputValue);
+      } else {
+        // Reset to defaults for new class
+        setIsFileManagerCollapsed(false);
+        setSelectedTextForChat('');
+        setChatIndicatorItems([]);
+        setChatInputValue('');
+      }
+    }
+    previousClassIdRef.current = id;
+  }, [id, getClassState, documentManager, queryClient]);
+  
+  
 
   // Determine if we're in a loading state - be more permissive
   const isPageLoading = courseLoading && !displayCourse;
@@ -267,7 +346,7 @@ export const Class: React.FC = () => {
         {(() => {
           const chatContainer = (
             <MemoizedChatContainer
-                key="chat-interface"
+                key={`chat-interface-${id}`}
                 messages={chatManager.messages}
                 isAiLoading={chatManager.isAiLoading}
                 onSubmit={handleCombinedSubmit}
@@ -281,6 +360,8 @@ export const Class: React.FC = () => {
                 isPdfPreviewOpen={!!documentManager.selectedDocument}
                 onIndicatorItemsChange={setChatIndicatorItems}
                 documents={documentManager.documents}
+                value={chatInputValue}
+                onValueChange={setChatInputValue}
                 onOpenDocument={(documentId: string) => {
                   const doc = documentManager.documents.find(d => d.id === documentId);
                   if (doc) {
@@ -394,32 +475,41 @@ export const Class: React.FC = () => {
                     }
                   }
                 }}
+                onSaveCurrentState={saveCurrentState}
             />
           );
 
-          // Render based on whether document is selected
-          if (documentManager.selectedDocument) {
-            return (
-              <div style={{ display: 'flex', height: '100%', width: '100%' }}>
-                <DocumentPreview
-                  document={documentManager.selectedDocument}
-                  onClose={() => documentManager.setSelectedDocument(null)}
-                  onSetSelectedTextForChat={setSelectedTextForChatHandler}
-                  onPageChange={documentManager.setCurrentPage}
-                  initialPage={documentManager.currentPage}
-                  courseId={id}
-                >
-                  {chatContainer}
-                </DocumentPreview>
-              </div>
+          // Render based on whether document is selected AND belongs to current course
+          if (documentManager.selectedDocument && id) {
+            // Double-check that the selected document belongs to the current course
+            const documentBelongsToCurrentCourse = allSlides.some(
+              slide => slide.id === documentManager.selectedDocument?.id
             );
-          } else {
-            return (
+            
+            if (documentBelongsToCurrentCourse) {
+              return (
+                <div style={{ display: 'flex', height: '100%', width: '100%' }}>
+                  <DocumentPreview
+                    document={documentManager.selectedDocument}
+                    onClose={() => documentManager.setSelectedDocument(null)}
+                    onSetSelectedTextForChat={setSelectedTextForChatHandler}
+                    onPageChange={documentManager.handlePageChange}
+                    initialPage={documentManager.currentPage}
+                    courseId={id}
+                  >
+                    {chatContainer}
+                  </DocumentPreview>
+                </div>
+              );
+            }
+          }
+          
+          // If no document or document doesn't belong to current course
+          return (
               <div className="flex-1 h-full pr-2">
                 {chatContainer}
               </div>
             );
-          }
         })()}
       </div>
 

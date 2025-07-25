@@ -1,9 +1,9 @@
 package staffbase.lectura.infrastructure.database.local
 
 import org.springframework.context.annotation.Profile
-import org.springframework.expression.spel.ast.Assign
 import org.springframework.stereotype.Component
 import staffbase.lectura.ai.chat.ChatMessage
+import staffbase.lectura.ai.chat.ChatTurn
 import staffbase.lectura.dao.ChatDAO
 import java.util.concurrent.ConcurrentHashMap
 
@@ -14,17 +14,17 @@ class ChatInMemoryDAO : ChatDAO {
     private fun key(userId: String, courseId: String): String =
         "chat:$userId:$courseId"
 
-    override fun addMessage(userId: String, courseId: String, userMessage: ChatMessage, assistantMessage: ChatMessage) {
+    override fun addMessage(userId: String, courseId: String, chatTurn: ChatTurn) {
         val storageKey = key(userId, courseId)
         val messages = DataStore.messages.computeIfAbsent(storageKey) { mutableListOf() }
         
-        // Add message to the beginning (like Redis leftPush)
-        messages.add(0, userMessage)
-        messages.add(0, assistantMessage)
-        
-        // Keep only last 10 messages
-        if (messages.size > 10) {
-            messages.removeAt(messages.size - 1)
+        // Add messages to the beginning (like Redis leftPush)
+        // Add assistant message first, then user message (to maintain correct order)
+        messages.add(0, chatTurn.assistantMessage)
+        messages.add(0, chatTurn.userMessage)
+
+        // Keep only last 200 messages (consistent with MongoDB implementation)
+        while (messages.size > 200) {
             messages.removeAt(messages.size - 1)
         }
     }
@@ -38,4 +38,4 @@ class ChatInMemoryDAO : ChatDAO {
     override fun deleteAll(userId: String, courseId: String) {
         DataStore.messages.remove(key(userId, courseId))
     }
-} 
+}

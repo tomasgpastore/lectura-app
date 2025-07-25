@@ -1,69 +1,25 @@
-import { useState, useCallback, useEffect, useRef } from 'react';
-
-const COMMAND_HISTORY_KEY = 'lectura_command_history';
-const MAX_HISTORY_SIZE = 10;
+import { useState, useCallback, useRef } from 'react';
+import { useClassStateStore } from '../../../stores/classStateStore';
 
 export const useCommandHistory = () => {
-  const [commandHistory, setCommandHistory] = useState<string[]>([]);
+  const { commandHistory, addCommandToHistory } = useClassStateStore();
   const [historyIndex, setHistoryIndex] = useState<number>(-1);
   const currentCommandRef = useRef<string>('');
-
-  // Load command history from localStorage on mount
-  useEffect(() => {
-    try {
-      const storedHistory = localStorage.getItem(COMMAND_HISTORY_KEY);
-      if (storedHistory) {
-        const parsed = JSON.parse(storedHistory);
-        if (Array.isArray(parsed)) {
-          // Ensure we have an array of strings
-          const validHistory = parsed.filter(item => typeof item === 'string').slice(0, MAX_HISTORY_SIZE);
-          setCommandHistory(validHistory);
-        }
-      }
-    } catch (error) {
-      console.error('Failed to load command history:', error);
-      // Initialize with empty array if loading fails
-      setCommandHistory([]);
-    }
-  }, []);
 
   // Add a command to history
   const addToHistory = useCallback((command: string) => {
     if (!command.trim() || !command.startsWith('/')) return;
 
     console.log('Adding command to history:', command);
-
-    // Get current history from state
-    const currentHistory = commandHistory;
     
-    // Create new history with the command at the beginning
-    let newHistory = [command];
-    
-    // Add previous commands, excluding duplicates of the current command
-    for (const cmd of currentHistory) {
-      if (cmd !== command && newHistory.length < MAX_HISTORY_SIZE) {
-        newHistory.push(cmd);
-      }
-    }
-    
-    // Ensure we don't exceed max size
-    newHistory = newHistory.slice(0, MAX_HISTORY_SIZE);
-    
-    // Save to localStorage immediately (synchronously)
-    try {
-      localStorage.setItem(COMMAND_HISTORY_KEY, JSON.stringify(newHistory));
-      console.log('Saved to localStorage:', newHistory);
-    } catch (error) {
-      console.error('Failed to save command history:', error);
-    }
-    
-    // Update state
-    setCommandHistory(newHistory);
+    // Add to Zustand store
+    addCommandToHistory(command);
+    console.log('Saved to Zustand:', commandHistory);
     
     // Reset history index when a new command is added
     setHistoryIndex(-1);
     currentCommandRef.current = '';
-  }, [commandHistory]);
+  }, [addCommandToHistory, commandHistory]);
 
   // Navigate through history
   const navigateHistory = useCallback((direction: 'up' | 'down', currentValue: string = '') => {

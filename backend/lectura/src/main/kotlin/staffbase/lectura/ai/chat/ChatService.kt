@@ -7,8 +7,8 @@ import staffbase.lectura.dao.ChatDAO
 class ChatService(
     private val chatDAO: ChatDAO
 ) {
-    fun addMessage(userId: String, courseId: String, userMessage: ChatMessage, assistantMessage: ChatMessage) {
-        chatDAO.addMessage(userId, courseId, userMessage, assistantMessage)
+    fun addMessage(userId: String, courseId: String, chatTurn: ChatTurn) {
+        chatDAO.addMessage(userId, courseId, chatTurn)
     }
 
     fun getMessages(userId: String, courseId: String): List<ChatMessage> {

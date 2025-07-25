@@ -30,6 +30,10 @@ interface ChatInputStandaloneProps {
   onClearSelectedText?: () => void;
   isPdfPreviewOpen?: boolean;
   
+  // Controlled input support
+  value?: string;
+  onValueChange?: (value: string) => void;
+  
   // Data for suggestions/commands
   files?: FileItem[];
   courses?: Course[];
@@ -41,6 +45,7 @@ interface ChatInputStandaloneProps {
   onRemoveDocument?: (documentId: string) => void;
   onRenameDocument?: (documentId: string, newName: string) => void;
   onFilesUploaded?: (files: File[]) => void;
+  onSaveCurrentState?: () => void;
 }
 
 export interface ChatInputStandaloneHandle {
@@ -54,6 +59,8 @@ export const ChatInputStandalone = memo(forwardRef<ChatInputStandaloneHandle, Ch
   selectedTextForChat,
   onClearSelectedText,
   isPdfPreviewOpen,
+  value: externalValue,
+  onValueChange,
   files = [],
   courses = [],
   documents = [],
@@ -62,13 +69,16 @@ export const ChatInputStandalone = memo(forwardRef<ChatInputStandaloneHandle, Ch
   onRemoveDocument,
   onRenameDocument,
   onFilesUploaded,
+  onSaveCurrentState,
 }, ref) => {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const lastHeightRef = useRef<number>(0);
   const fileInputRef = useRef<HTMLInputElement>(null);
   
-  // All state is managed internally
-  const [inputValue, setInputValue] = useState('');
+  // Use external value if provided, otherwise manage internally
+  const [localValue, setLocalValue] = useState('');
+  const inputValue = externalValue !== undefined ? externalValue : localValue;
+  const setInputValue = onValueChange || setLocalValue;
   const [indicatorItems, setIndicatorItems] = useState<IndicatorItem[]>([]);
   
   // File suggestions state
@@ -147,6 +157,7 @@ export const ChatInputStandalone = memo(forwardRef<ChatInputStandaloneHandle, Ch
     textareaRef,
     resetHeight,
     addToHistory,
+    onSaveCurrentState,
   });
 
   // Filter files based on input
@@ -251,7 +262,7 @@ export const ChatInputStandalone = memo(forwardRef<ChatInputStandaloneHandle, Ch
         resetHeight();
       }
     }
-  }), [resetHeight]);
+  }), [resetHeight, setInputValue]);
 
   const handleCloseCloud = useCallback(() => {
     onClearSelectedText?.();

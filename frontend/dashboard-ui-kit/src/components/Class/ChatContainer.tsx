@@ -38,6 +38,12 @@ interface ChatContainerProps {
   onRemoveDocument?: (documentId: string) => void;
   onRenameDocument?: (documentId: string, newName: string) => void;
   onFilesUploaded?: (files: File[]) => void;
+  onSaveCurrentState?: () => void;
+  
+  // Controlled input props
+  value?: string;
+  onValueChange?: (value: string) => void;
+  
 }
 
 export const ChatContainer = memo<ChatContainerProps>(({
@@ -61,6 +67,9 @@ export const ChatContainer = memo<ChatContainerProps>(({
   onRemoveDocument,
   onRenameDocument,
   onFilesUploaded,
+  onSaveCurrentState,
+  value,
+  onValueChange,
 }) => {
   const chatInputRef = useRef<ChatInputStandaloneHandle>(null);
 
@@ -112,6 +121,9 @@ export const ChatContainer = memo<ChatContainerProps>(({
         onRemoveDocument={onRemoveDocument}
         onRenameDocument={onRenameDocument}
         onFilesUploaded={onFilesUploaded}
+        onSaveCurrentState={onSaveCurrentState}
+        value={value}
+        onValueChange={onValueChange}
       />
     </div>
   );
