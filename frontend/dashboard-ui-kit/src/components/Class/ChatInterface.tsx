@@ -129,16 +129,21 @@ const ChatInterfaceComponent: React.FC<ChatInterfaceProps> = ({
     getItemKey: useCallback((index: number) => `group-${index}`, []),
   });
   
-  // Effect to handle new messages only (not initial mount)
+  // Effect to manage scrolling - triggers on initial render and when conversation groups change
   useEffect(() => {
     if (!messagesContainerRef.current || conversationGroups.length === 0) return;
     
     const isMount = prevGroupsLengthRef.current === 0;
     const isNewMessage = conversationGroups.length > prevGroupsLengthRef.current;
     
-    // Only scroll for new messages, not on mount/switch
-    if (!isMount && isNewMessage) {
-      // Smooth scroll for new messages
+    // On initial mount or when switching classes, scroll without animation
+    if (isMount || (!isNewMessage && conversationGroups.length > 0)) {
+      virtualizer.scrollToIndex(conversationGroups.length - 1, {
+        align: 'end'
+      });
+    }
+    // For new messages, use smooth scrolling
+    else if (isNewMessage) {
       virtualizer.scrollToIndex(conversationGroups.length - 1, {
         align: 'end',
         behavior: 'smooth'
@@ -162,7 +167,6 @@ const ChatInterfaceComponent: React.FC<ChatInterfaceProps> = ({
       }
     }
   }, [isAiLoading, messages]);
-
   
   // Close menu when clicking outside
   useEffect(() => {

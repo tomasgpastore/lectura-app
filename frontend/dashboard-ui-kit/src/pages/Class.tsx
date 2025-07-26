@@ -358,6 +358,7 @@ export const Class: React.FC = () => {
                 onClearSelectedText={clearSelectedText}
                 courses={allCourses}
                 isPdfPreviewOpen={!!documentManager.selectedDocument}
+                indicatorItems={chatIndicatorItems}
                 onIndicatorItemsChange={setChatIndicatorItems}
                 documents={documentManager.documents}
                 value={chatInputValue}

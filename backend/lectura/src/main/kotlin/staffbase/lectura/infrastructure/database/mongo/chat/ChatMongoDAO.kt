@@ -7,6 +7,7 @@ import org.springframework.stereotype.Component
 import staffbase.lectura.ai.chat.ChatMessage
 import staffbase.lectura.ai.chat.ChatTurn
 import staffbase.lectura.dao.ChatDAO
+import java.util.concurrent.TimeUnit
 
 @Component
 @Profile("remote")
@@ -15,6 +16,8 @@ class ChatMongoDAO(
     private val objectMapper: ObjectMapper,
     private val chatRepo: ChatMongoRepository
 ) : ChatDAO {
+
+    private val CACHE_TTL_HOURS = 1L // Define TTL as a constant
 
     private fun key(userId: String, courseId: String): String =
         "user:$userId:course$courseId:chat"
@@ -30,6 +33,8 @@ class ChatMongoDAO(
         redisTemplate.opsForList().leftPush(redisKey, userMessageJson)
         redisTemplate.opsForList().leftPush(redisKey, assistantMessageJson)
         redisTemplate.opsForList().trim(redisKey, 0, 199) // Keep only the last 200 messages (100 turns)
+
+        redisTemplate.expire(redisKey, CACHE_TTL_HOURS, TimeUnit.HOURS)
 
         // Save the chat turn in MongoDB
         chatRepo.save(chatTurn)
@@ -64,6 +69,7 @@ class ChatMongoDAO(
                     val messageJson = objectMapper.writeValueAsString(message)
                     redisTemplate.opsForList().rightPush(redisKey, messageJson)
                 }
+                redisTemplate.expire(redisKey, CACHE_TTL_HOURS, TimeUnit.HOURS)
             }
 
             messages
