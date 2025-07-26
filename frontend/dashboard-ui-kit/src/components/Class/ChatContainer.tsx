@@ -26,7 +26,8 @@ interface ChatContainerProps {
   onClearSelectedText?: () => void;
   isPdfPreviewOpen?: boolean;
   
-  // Indicator items callback for parent to know what's selected
+  // Indicator items - controlled from parent
+  indicatorItems?: IndicatorItem[];
   onIndicatorItemsChange?: (items: IndicatorItem[]) => void;
   
   // Data for suggestions
@@ -60,6 +61,7 @@ export const ChatContainer = memo<ChatContainerProps>(({
   selectedTextForChat,
   onClearSelectedText,
   isPdfPreviewOpen,
+  indicatorItems,
   onIndicatorItemsChange,
   courses = [],
   documents = [],
@@ -109,6 +111,8 @@ export const ChatContainer = memo<ChatContainerProps>(({
         selectedTextForChat={selectedTextForChat}
         onClearSelectedText={onClearSelectedText}
         isPdfPreviewOpen={isPdfPreviewOpen}
+        indicatorItems={indicatorItems}
+        onIndicatorItemsChange={onIndicatorItemsChange}
         files={slides?.map(slide => ({
           id: slide.id,
           name: slide.originalFileName,

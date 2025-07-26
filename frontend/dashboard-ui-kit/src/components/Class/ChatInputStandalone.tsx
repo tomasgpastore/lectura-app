@@ -34,6 +34,10 @@ interface ChatInputStandaloneProps {
   value?: string;
   onValueChange?: (value: string) => void;
   
+  // Controlled indicator items
+  indicatorItems?: IndicatorItem[];
+  onIndicatorItemsChange?: (items: IndicatorItem[]) => void;
+  
   // Data for suggestions/commands
   files?: FileItem[];
   courses?: Course[];
@@ -61,6 +65,8 @@ export const ChatInputStandalone = memo(forwardRef<ChatInputStandaloneHandle, Ch
   isPdfPreviewOpen,
   value: externalValue,
   onValueChange,
+  indicatorItems: externalIndicatorItems,
+  onIndicatorItemsChange,
   files = [],
   courses = [],
   documents = [],
@@ -79,7 +85,11 @@ export const ChatInputStandalone = memo(forwardRef<ChatInputStandaloneHandle, Ch
   const [localValue, setLocalValue] = useState('');
   const inputValue = externalValue !== undefined ? externalValue : localValue;
   const setInputValue = onValueChange || setLocalValue;
-  const [indicatorItems, setIndicatorItems] = useState<IndicatorItem[]>([]);
+  
+  // Use external indicator items if provided, otherwise manage internally
+  const [localIndicatorItems, setLocalIndicatorItems] = useState<IndicatorItem[]>([]);
+  const indicatorItems = externalIndicatorItems !== undefined ? externalIndicatorItems : localIndicatorItems;
+  const setIndicatorItems = onIndicatorItemsChange || setLocalIndicatorItems;
   
   // File suggestions state
   const [showFiles, setShowFiles] = useState(false);
@@ -88,21 +98,22 @@ export const ChatInputStandalone = memo(forwardRef<ChatInputStandaloneHandle, Ch
   
   // Handle PDF preview state changes
   useEffect(() => {
-    // Remove any existing current-page indicator
-    const filtered = indicatorItems.filter(item => item.type !== 'current-page');
-    
-    if (isPdfPreviewOpen) {
-      // Add current page indicator at the beginning
-      const newItems = [{
-        id: 'current-page',
-        type: 'current-page' as const,
-        name: 'Current page',
-        removable: false
-      }, ...filtered];
-      setIndicatorItems(newItems);
-    } else {
-      setIndicatorItems(filtered);
-    }
+    setIndicatorItems(prevItems => {
+      // Remove any existing current-page indicator
+      const filtered = prevItems.filter(item => item.type !== 'current-page');
+      
+      if (isPdfPreviewOpen) {
+        // Add current page indicator at the beginning
+        return [{
+          id: 'current-page',
+          type: 'current-page' as const,
+          name: 'Current page',
+          removable: false
+        }, ...filtered];
+      } else {
+        return filtered;
+      }
+    });
   }, [isPdfPreviewOpen]);
 
   // Reset height when clearing
@@ -243,13 +254,13 @@ export const ChatInputStandalone = memo(forwardRef<ChatInputStandaloneHandle, Ch
     setShowFiles(false);
     setFileFilter('');
     setSelectedFileIndex(0);
-  }, [inputValue, handleInput, indicatorItems]);
+  }, [inputValue, handleInput, indicatorItems, setIndicatorItems]);
 
   // Handle removing indicator item
   const removeIndicatorItem = useCallback((itemId: string) => {
     const filtered = indicatorItems.filter(item => item.id !== itemId);
     setIndicatorItems(filtered);
-  }, [indicatorItems]);
+  }, [indicatorItems, setIndicatorItems]);
 
   // Expose methods to parent
   useImperativeHandle(ref, () => ({
@@ -262,7 +273,7 @@ export const ChatInputStandalone = memo(forwardRef<ChatInputStandaloneHandle, Ch
         resetHeight();
       }
     }
-  }), [resetHeight, setInputValue]);
+  }), [resetHeight, setInputValue, setIndicatorItems]);
 
   const handleCloseCloud = useCallback(() => {
     onClearSelectedText?.();
