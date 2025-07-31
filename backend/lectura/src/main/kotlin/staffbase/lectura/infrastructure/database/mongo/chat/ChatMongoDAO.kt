@@ -30,6 +30,7 @@ class ChatMongoDAO(
         val assistantMessageJson = objectMapper.writeValueAsString(chatTurn.assistantMessage)
 
         // Store messages in Redis (store individual messages, not the full turn)
+        // Use rightPush to maintain chronological order (oldest at end, newest at beginning)
         redisTemplate.opsForList().leftPush(redisKey, userMessageJson)
         redisTemplate.opsForList().leftPush(redisKey, assistantMessageJson)
         redisTemplate.opsForList().trim(redisKey, 0, 199) // Keep only the last 200 messages (100 turns)
@@ -42,7 +43,8 @@ class ChatMongoDAO(
 
     override fun getLastMessages(userId: String, courseId: String, limit: Int): List<ChatMessage> {
         val redisKey = key(userId, courseId)
-        val jsonList = redisTemplate.opsForList().range(redisKey, 0, limit.toLong() - 1)
+        // Get messages from the end of the list (most recent messages)
+        val jsonList = redisTemplate.opsForList().range(redisKey, -limit.toLong(), -1)
 
         return if (!jsonList.isNullOrEmpty()) {
             // Return messages from Redis cache
@@ -55,24 +57,34 @@ class ChatMongoDAO(
             }
         } else {
             // If Redis is empty, fetch from MongoDB and populate cache
-            val chatTurns = chatRepo.findByUserIdAndCourseId(userId, courseId)
-                .sortedByDescending { it.timestamp }
-                .take(limit / 2) // Since each turn has 2 messages
-
-            val messages = chatTurns.flatMap { it.toChatMessages() }
-                .take(limit)
-
-            // Populate Redis cache with the messages from MongoDB
-            if (messages.isNotEmpty()) {
-                val messagesToCache = messages.reversed() // Reverse to maintain correct order in Redis
-                messagesToCache.forEach { message ->
-                    val messageJson = objectMapper.writeValueAsString(message)
-                    redisTemplate.opsForList().rightPush(redisKey, messageJson)
+            val allChatTurns = chatRepo.findByUserIdAndCourseId(userId, courseId)
+                .sortedBy { it.timestamp }.reversed() // Sort ascending (oldest first)
+            
+            // Populate Redis with all messages in chronological order
+            if (allChatTurns.isNotEmpty()) {
+                allChatTurns.forEach { turn ->
+                    val userMessageJson = objectMapper.writeValueAsString(turn.userMessage)
+                    val assistantMessageJson = objectMapper.writeValueAsString(turn.assistantMessage)
+                    redisTemplate.opsForList().rightPush(redisKey, assistantMessageJson)
+                    redisTemplate.opsForList().rightPush(redisKey, userMessageJson)
                 }
                 redisTemplate.expire(redisKey, CACHE_TTL_HOURS, TimeUnit.HOURS)
+                
+                // Trim to keep only the last 200 messages
+                val totalMessages = allChatTurns.size * 2
+                if (totalMessages > 200) {
+                    redisTemplate.opsForList().trim(redisKey, (totalMessages - 200).toLong(), -1)
+                }
             }
-
-            messages
+            // Now get the requested messages from Redis
+            val jsonList = redisTemplate.opsForList().range(redisKey, -limit.toLong(), -1)
+            jsonList?.mapNotNull {
+                try {
+                    objectMapper.readValue(it, ChatMessage::class.java)
+                } catch (_: Exception) {
+                    null // Skip malformed JSON
+                }
+            } ?: emptyList()
         }
     }
 

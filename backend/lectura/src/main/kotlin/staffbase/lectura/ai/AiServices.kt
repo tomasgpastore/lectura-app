@@ -1,5 +1,6 @@
 package staffbase.lectura.ai
 
+import com.fasterxml.jackson.annotation.JsonProperty
 import org.springframework.http.HttpEntity
 import org.springframework.http.HttpHeaders
 import org.springframework.http.HttpMethod
@@ -13,15 +14,18 @@ import staffbase.lectura.dto.ai.ChatOutboundDTO
 import staffbase.lectura.dto.ai.ChatResponseDTO
 import java.net.HttpURLConnection
 import com.fasterxml.jackson.databind.ObjectMapper
+import org.springframework.data.web.JsonPath
 import staffbase.lectura.ai.chat.ChatTurn
 import java.net.URI
 import java.time.Instant
-import java.time.LocalDateTime
 
 data class SlideProcessingRequest(
+    @JsonProperty("course_id")
     val courseId: String,
+    @JsonProperty("slide_id")
     val slideId: String,
-    val s3_fileName: String
+    @JsonProperty("s3_file_name")
+    val s3FileName: String
 )
 
 /*
@@ -47,7 +51,7 @@ class EmbeddingProcessingService {
             val request = SlideProcessingRequest(
                 courseId = courseId,
                 slideId = slideId,
-                s3_fileName = s3FileName
+                s3FileName = s3FileName
             )
             
             val entity = HttpEntity(request, headers)
@@ -70,7 +74,7 @@ class EmbeddingProcessingService {
             val request = SlideProcessingRequest(
                 courseId = courseId,
                 slideId = slideId,
-                s3_fileName = s3FileName
+                s3FileName = s3FileName
             )
             
             val entity = HttpEntity(request, headers)
@@ -199,9 +203,9 @@ class AiChatService(
     ): ChatResponseDTO {
         // Build the outbound request payload
         val request = ChatOutboundDTO(
-            course   = courseId,
-            user     = userId,
-            prompt   = userPrompt,
+            courseId   = courseId,
+            userId     = userId,
+            userPrompt   = userPrompt,
             snapshot = snapshot
         )
 

@@ -38,22 +38,22 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(
     title="PDF Processing Pipeline API",
-    description="Microservice API for processing PDF files from S3 and uploading chunks to Pinecone",
-    version="2.0.0",
+    description="Microservice API for processing PDF files from S3, chunking them, embedding with Voyage AI, and storing in MongoDB",
+    version="3.0.0",
     lifespan=lifespan
 )
 
 class InboundRequest(BaseModel):
-    courseId: str
-    slideId: str
-    s3_fileName: str  # S3 object key/filename
+    course_id: str
+    slide_id: str
+    s3_file_name: str  # S3 object key/filename
 
 class InboundResponse(BaseModel):
     status: str
     message: str
-    courseId: str
-    slideId: str
-    s3_fileName: str
+    course_id: str
+    slide_id: str
+    s3_file_name: str
     processing_time_ms: int
     total_pages: Optional[int] = None
     total_chunks: Optional[int] = None
@@ -61,32 +61,32 @@ class InboundResponse(BaseModel):
     failed_batches: Optional[int] = None
 
 class ManagementRequest(BaseModel):
-    courseId: str
-    slideId: str
-    s3_fileName: str
+    course_id: str
+    slide_id: str
+    s3_file_name: str
 
 class ManagementResponse(BaseModel):
     status: str
     message: str
-    courseId: str
-    slideId: str
-    s3_fileName: str
+    course_id: str
+    slide_id: str
+    s3_file_name: str
     processing_time_ms: int
     vectors_deleted: Optional[int] = None
 
 @app.post("/inbound", status_code=status.HTTP_200_OK, response_model=InboundResponse)
 async def process_pdf(request: InboundRequest):
     """
-    Process PDF from S3 and upload chunks to Pinecone
+    Process PDF from S3: chunk it, embed with Voyage AI, and save to MongoDB
     
     Args:
-        request: Contains courseId, slideId, and s3_fileName
+        request: Contains course_id, slide_id, and s3_file_name
         
     Returns:
         Processing results and metrics
     """
     start_time = time.time()
-    logger.info(f"Received processing request: courseId={request.courseId}, slideId={request.slideId}, s3_fileName={request.s3_fileName}")
+    logger.info(f"Received processing request: course_id={request.course_id}, slide_id={request.slide_id}, s3_file_name={request.s3_file_name}")
     
     # Validate required environment variables
     is_valid, missing_vars = validate_environment()
@@ -101,9 +101,9 @@ async def process_pdf(request: InboundRequest):
         # Call the async pipeline function directly
         logger.info("Starting PDF processing pipeline")
         result = await process_pdf_pipeline(
-            fileName=request.s3_fileName,
-            courseId=request.courseId,
-            slideId=request.slideId
+            course_id=request.course_id,
+            slide_id=request.slide_id,
+            s3_file_path=request.s3_file_name
         )
         
         # Calculate total processing time
@@ -115,22 +115,29 @@ async def process_pdf(request: InboundRequest):
             logger.info(f"Pipeline completed successfully in {processing_time_ms}ms")
             logger.info(f"Pipeline results: {result}")
             
+            # Extract statistics from the new response format
+            stats = result.get("statistics", {})
+            
             response = InboundResponse(
                 status="success",
-                message="PDF processed and uploaded to Pinecone successfully",
-                courseId=request.courseId,
-                slideId=request.slideId,
-                s3_fileName=request.s3_fileName,
-                processing_time_ms=processing_time_ms,
-                total_pages=result.get("total_pages"),
-                total_chunks=result.get("total_chunks"),
-                successful_uploads=result.get("successful_uploads"),
-                failed_batches=result.get("failed_batches")
+                message="PDF processed and saved to MongoDB successfully",
+                course_id=request.course_id,
+                slide_id=request.slide_id,
+                s3_file_name=request.s3_file_name,
+                processing_time_ms=result.get("processing_time_ms", processing_time_ms),
+                total_pages=stats.get("total_pages"),
+                total_chunks=stats.get("chunks_created"),
+                successful_uploads=stats.get("chunks_saved"),
+                failed_batches=stats.get("errors", 0)
             )
             
-            # Add warning if there were failed batches
-            if result.get("failed_batches", 0) > 0:
-                response.message += f" (Warning: {result['failed_batches']} batches failed to upload)"
+            # Add warning if there were duplicates
+            if stats.get("duplicates_skipped", 0) > 0:
+                response.message += f" (Info: {stats['duplicates_skipped']} duplicate chunks skipped)"
+            
+            # Add warning if there were errors
+            if stats.get("errors", 0) > 0:
+                response.message += f" (Warning: {stats['errors']} errors occurred during processing)"
             
             return response
             
@@ -159,13 +166,13 @@ async def delete_vectors(request: ManagementRequest):
     Delete vectors from Pinecone based on metadata filters
     
     Args:
-        request: Contains courseId, slideId, and s3_fileName for filtering
+        request: Contains course_id, slide_id, and s3_file_name for filtering
         
     Returns:
         Deletion results and metrics
     """
     start_time = time.time()
-    logger.info(f"Received deletion request: courseId={request.courseId}, slideId={request.slideId}, s3_fileName={request.s3_fileName}")
+    logger.info(f"Received deletion request: course_id={request.course_id}, slide_id={request.slide_id}, s3_file_name={request.s3_file_name}")
     
     # Validate required environment variables
     is_valid, missing_vars = validate_environment()
@@ -180,9 +187,9 @@ async def delete_vectors(request: ManagementRequest):
         # Call the async deletion function
         logger.info("Starting vector deletion")
         result = await delete_vectors_by_metadata(
-            courseId=request.courseId,
-            slideId=request.slideId,
-            s3_fileName=request.s3_fileName
+            course_id=request.course_id,
+            slide_id=request.slide_id,
+            s3_file_name=request.s3_file_name
         )
         
         # Calculate total processing time
@@ -197,9 +204,9 @@ async def delete_vectors(request: ManagementRequest):
             response = ManagementResponse(
                 status="success",
                 message=result.get("message", "Vectors deleted successfully"),
-                courseId=request.courseId,
-                slideId=request.slideId,
-                s3_fileName=request.s3_fileName,
+                course_id=request.course_id,
+                slide_id=request.slide_id,
+                s3_file_name=request.s3_file_name,
                 processing_time_ms=processing_time_ms,
                 vectors_deleted=result.get("vectors_deleted", 0)
             )
