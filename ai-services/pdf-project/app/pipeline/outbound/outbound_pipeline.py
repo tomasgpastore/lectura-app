@@ -42,11 +42,20 @@ class WebSource(BaseModel):
     text: str
 
 
+class ImageSource(BaseModel):
+    """Image source information for citations."""
+    id: str
+    type: str  # "current" or "previous"
+    messageId: Optional[str] = None  # For previous images (camelCase for frontend)
+    timestamp: Optional[str] = None
+
+
 class ChatResponseDTO(BaseModel):
     """Response model matching expected backend format."""
     response: str = Field(..., description="The AI agent's response")
     ragSources: List[RagSource] = Field(default_factory=list, description="RAG sources used")
     webSources: List[WebSource] = Field(default_factory=list, description="Web sources used")
+    imageSources: List[ImageSource] = Field(default_factory=list, description="Image sources used")
 
 
 async def process_outbound_pipeline(request: OutboundRequest) -> ChatResponseDTO:
@@ -92,7 +101,13 @@ async def process_outbound_pipeline(request: OutboundRequest) -> ChatResponseDTO
         response = ChatResponseDTO(
             response=result.get("response", ""),
             ragSources=[RagSource(**source) for source in result.get("rag_sources", [])],
-            webSources=[WebSource(**source) for source in result.get("web_sources", [])]
+            webSources=[WebSource(**source) for source in result.get("web_sources", [])],
+            imageSources=[ImageSource(
+                id=source["id"],
+                type=source["type"],
+                messageId=source.get("message_id"),
+                timestamp=source.get("timestamp")
+            ) for source in result.get("image_sources", [])]
         )
         
         # Log performance metrics
@@ -109,7 +124,8 @@ async def process_outbound_pipeline(request: OutboundRequest) -> ChatResponseDTO
         return ChatResponseDTO(
             response=f"I encountered an error processing your request: {str(e)}",
             ragSources=[],
-            webSources=[]
+            webSources=[],
+            imageSources=[]
         )
 
 
