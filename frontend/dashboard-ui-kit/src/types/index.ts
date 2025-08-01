@@ -97,7 +97,7 @@ export enum SearchType {
 export interface ChatFrontDTO {
   courseId: string;
   userPrompt: string;
-  snapshot: string[];
+  snapshots: string[];
   priorityDocuments: string[];
   searchType: SearchType;
 }

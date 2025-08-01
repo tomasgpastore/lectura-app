@@ -1,4 +1,5 @@
 import React, { useState, useMemo } from 'react';
+import ReactDOM from 'react-dom';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import remarkMath from 'remark-math';
@@ -33,7 +34,7 @@ const SourceModal: React.FC<SourceModalProps> = ({ source, isOpen, onClose, onOp
   const slide = slides.find(s => s.id === source.slide);
   const fileName = slide?.originalFileName || "Not Found";
 
-  return (
+  const modalContent = (
     <div 
       className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4"
       onClick={(e) => {
@@ -98,6 +99,12 @@ const SourceModal: React.FC<SourceModalProps> = ({ source, isOpen, onClose, onOp
         </div>
       </div>
     </div>
+  );
+
+  // Render the modal using React Portal to ensure it's outside the chat scroll container
+  return ReactDOM.createPortal(
+    modalContent,
+    document.body
   );
 };
 

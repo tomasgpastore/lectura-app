@@ -1,4 +1,5 @@
 import React from 'react';
+import ReactDOM from 'react-dom';
 import { ExternalLink } from 'lucide-react';
 import { ChatSource } from '../../types';
 
@@ -11,7 +12,7 @@ interface WebSourceModalProps {
 export const WebSourceModal: React.FC<WebSourceModalProps> = ({ source, isOpen, onClose }) => {
   if (!isOpen || !source || source.type !== 'web') return null;
 
-  return (
+  const modalContent = (
     <div 
       className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4"
       onClick={(e) => {
@@ -79,5 +80,11 @@ export const WebSourceModal: React.FC<WebSourceModalProps> = ({ source, isOpen, 
         </div>
       </div>
     </div>
+  );
+
+  // Render the modal using React Portal to ensure it's outside the chat scroll container
+  return ReactDOM.createPortal(
+    modalContent,
+    document.body
   );
 };
