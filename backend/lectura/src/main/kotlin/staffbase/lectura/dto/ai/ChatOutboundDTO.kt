@@ -14,5 +14,6 @@ data class ChatOutboundDTO(
     val slidePriority: List<String> = emptyList(),
     @JsonProperty("search_type")
     val searchType: String = "DEFAULT",
+    @JsonProperty("snapshots")
     val snapshots: List<String> = emptyList(),
 )

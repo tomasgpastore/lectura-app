@@ -65,6 +65,9 @@ async def process_outbound_pipeline(request: OutboundRequest) -> ChatResponseDTO
         logger.info(f"Processing outbound request for user: {request.user_id}, course: {request.course_id}")
         logger.info(f"Search type: {request.search_type}, Slides priority: {request.slide_priority}")
         logger.info(f"Has snapshots: {len(request.snapshots) > 0}")
+        logger.info(f"Number of snapshots: {len(request.snapshots) if request.snapshots else 0}")
+        if request.snapshots and len(request.snapshots) > 0:
+            logger.info(f"Snapshot data preview: {request.snapshots[0][:50]}...")
         
         # Convert search type to uppercase to match enum
         search_type = request.search_type.upper()

@@ -351,14 +351,17 @@ class OutboundAgent:
         system_prompt = self._build_system_prompt(search_type, course_id, slides_priority)
         
         # Add snapshot to the last message if provided
+        logger.info(f"Agent node - snapshot exists: {snapshot is not None}")
+        if snapshot:
+            logger.info(f"Agent node - snapshot length: {len(snapshot)}")
         if snapshot and messages:
             last_message = messages[-1]
             if isinstance(last_message, HumanMessage):
                 # Create multimodal message with text and image for Gemini
-                # Gemini expects the image as base64 string without data URI prefix
+                # Gemini expects the image in image_url format with data URI
                 content = [
                     {"type": "text", "text": last_message.content},
-                    {"type": "image", "image": snapshot}  # Gemini format
+                    {"type": "image_url", "image_url": f"data:image/png;base64,{snapshot}"},
                 ]
                 messages[-1] = HumanMessage(content=content)
         
@@ -407,7 +410,7 @@ Steps:
 2. If new information is needed, create an optimized search query for vector search
 3. Call rag_search_tool with the query
 4. Answer based ONLY on the retrieved information
-5. Cite sources using [^n] format where n is the source number
+5. Cite sources using [^n] format where n is the source number. For multiple sources, use [^n][^m] format where n and m are the source numbers
 6. Place citations inline, not at the end
 
 Note: You can use retrieve_previous_sources to access sources from earlier messages if needed."""
@@ -420,7 +423,7 @@ Steps:
 1. Create an effective web search query
 2. Call web_search_tool with the query
 3. Answer based on the web results
-4. Cite sources using {^n} format where n is the source number
+4. Cite sources using {^n} format where n is the source number. For multiple sources, use {^n}{^m} format where n and m are the source numbers
 5. Place citations inline, not at the end
 
 Note: You can use retrieve_previous_sources to access sources from earlier messages if needed."""
@@ -434,7 +437,7 @@ Steps:
 2. Use rag_search_tool for course-specific information
 3. Use web_search_tool for current events or supplementary information
 4. Synthesize information from both sources
-5. Cite RAG sources using [^n] and web sources using {^n}
+5. Cite RAG sources using [^n] and web sources using {^n}. For multiple sources, use [^n][^m] and {^n}{^m} respectively.
 6. Place citations inline, not at the end
 
 Note: You can use retrieve_previous_sources to access sources from earlier messages if needed."""
@@ -552,8 +555,12 @@ Note: You can use retrieve_previous_sources to access sources from earlier messa
             
             # Process snapshot
             snapshot_b64 = None
+            logger.info(f"Snapshot parameter received: {snapshot is not None}")
+            if snapshot is not None:
+                logger.info(f"Number of snapshots: {len(snapshot)}")
             if snapshot and len(snapshot) > 0:
                 snapshot_b64 = snapshot[0]
+                logger.info(f"Using snapshot with length: {len(snapshot_b64)}")
             
             # Build initial state
             initial_state = {

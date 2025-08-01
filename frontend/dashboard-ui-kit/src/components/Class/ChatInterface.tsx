@@ -122,7 +122,7 @@ const ChatInterfaceComponent: React.FC<ChatInterfaceProps> = ({
       // Estimate height for each conversation group
       return 200;
     }, []),
-    overscan: 5, // Render 5 extra items on each side
+    overscan: 3, // Render 3 extra items on each side
     scrollMargin: 0,
     scrollPaddingStart: 0,
     scrollPaddingEnd: 0,
