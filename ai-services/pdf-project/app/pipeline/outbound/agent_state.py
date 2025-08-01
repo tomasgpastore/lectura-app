@@ -66,9 +66,24 @@ def get_redis_client() -> redis.Redis:
 
 def serialize_message(message: BaseMessage) -> Dict[str, Any]:
     """Convert a LangChain message to a serializable dictionary."""
+    content = message.content
+    
+    # Strip image content from HumanMessage for storage efficiency
+    if isinstance(message, HumanMessage) and isinstance(content, list):
+        # Remove image_url entries from multimodal content
+        filtered_content = []
+        for item in content:
+            if isinstance(item, dict) and item.get("type") == "text":
+                filtered_content.append(item)
+        # If only one text item remains, extract just the text
+        if len(filtered_content) == 1:
+            content = filtered_content[0]["text"]
+        else:
+            content = filtered_content if filtered_content else ""
+    
     return {
         "type": message.__class__.__name__.lower().replace("message", ""),
-        "content": message.content,
+        "content": content,
         "additional_kwargs": getattr(message, "additional_kwargs", {}),
         "response_metadata": getattr(message, "response_metadata", {}),
         "id": getattr(message, "id", None),
@@ -139,6 +154,7 @@ class AgentStateManager:
         # Redis key prefixes
         self.redis_prefix = "agent_state:"
         self.redis_sources_prefix = "agent_sources:"
+        self.redis_images_prefix = "agent_images:"
         self.redis_ttl = 3600 * 24  # 24 hours TTL for Redis cache
     
     def get_thread_id(self, user_id: str, course_id: str) -> str:
@@ -314,6 +330,7 @@ class AgentStateManager:
         thread_id = self.get_thread_id(user_id, course_id)
         redis_key = f"{self.redis_prefix}{thread_id}"
         redis_sources_key = f"{self.redis_sources_prefix}{thread_id}"
+        redis_images_key = f"{self.redis_images_prefix}{thread_id}"
         
         success = True
         
@@ -329,7 +346,8 @@ class AgentStateManager:
         try:
             self.redis_client.delete(redis_key)
             self.redis_client.delete(redis_sources_key)
-            logger.info(f"Cleared state and sources from Redis for thread: {thread_id}")
+            self.redis_client.delete(redis_images_key)
+            logger.info(f"Cleared state, sources, and images from Redis for thread: {thread_id}")
         except Exception as e:
             logger.warning(f"Error clearing from Redis: {e}")
         
@@ -458,6 +476,87 @@ class AgentStateManager:
         except Exception as e:
             logger.error(f"Error retrieving all sources: {e}")
             return []
+    
+    async def save_image(
+        self,
+        user_id: str,
+        course_id: str,
+        message_id: str,
+        image: str
+    ) -> bool:
+        """
+        Save an image for a specific message.
+        
+        Args:
+            user_id: User identifier
+            course_id: Course identifier
+            message_id: Unique message identifier
+            image: Base64 encoded image data
+            
+        Returns:
+            Success status
+        """
+        thread_id = self.get_thread_id(user_id, course_id)
+        redis_images_key = f"{self.redis_images_prefix}{thread_id}"
+        
+        image_data = {
+            "message_id": message_id,
+            "image": image,
+            "timestamp": datetime.now(timezone.utc).isoformat()
+        }
+        
+        try:
+            # Store in Redis hash with message_id as field
+            self.redis_client.hset(
+                redis_images_key,
+                message_id,
+                json.dumps(image_data)
+            )
+            # Set expiration
+            self.redis_client.expire(redis_images_key, self.redis_ttl)
+            
+            logger.info(f"Saved image for message {message_id} in thread {thread_id}")
+            return True
+            
+        except Exception as e:
+            logger.error(f"Error saving image: {e}")
+            return False
+    
+    async def get_images_for_messages(
+        self,
+        user_id: str,
+        course_id: str,
+        message_ids: List[str]
+    ) -> Dict[str, Dict[str, Any]]:
+        """
+        Retrieve images for specific messages.
+        
+        Args:
+            user_id: User identifier
+            course_id: Course identifier
+            message_ids: List of message IDs to retrieve images for
+            
+        Returns:
+            Dictionary mapping message_id to image data
+        """
+        thread_id = self.get_thread_id(user_id, course_id)
+        redis_images_key = f"{self.redis_images_prefix}{thread_id}"
+        
+        images_by_message = {}
+        
+        try:
+            # Get images from Redis
+            for message_id in message_ids:
+                image_data = self.redis_client.hget(redis_images_key, message_id)
+                if image_data:
+                    images_by_message[message_id] = json.loads(image_data)
+            
+            logger.info(f"Retrieved images for {len(images_by_message)} messages")
+            return images_by_message
+            
+        except Exception as e:
+            logger.error(f"Error retrieving images: {e}")
+            return {}
 
 
 def cleanup_agent_state_connections():

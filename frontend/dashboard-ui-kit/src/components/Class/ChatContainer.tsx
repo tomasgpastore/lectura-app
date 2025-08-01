@@ -1,4 +1,4 @@
-import React, { useRef, memo, useCallback } from 'react';
+import React, { useRef, memo, useCallback, useMemo } from 'react';
 import { ChatMessageUI, Course } from '../../types';
 import { ChatInterface } from './ChatInterface';
 import { ChatInput, ChatInputHandle } from './ChatInput';
@@ -83,6 +83,15 @@ export const ChatContainer = memo<ChatContainerProps>(({
   onWebSearchEnabledChange,
 }) => {
   const chatInputRef = useRef<ChatInputHandle>(null);
+  
+  // Memoize the files array to prevent unnecessary re-renders of ChatInput
+  const files = useMemo(() => {
+    return slides?.map(slide => ({
+      id: slide.id,
+      name: slide.originalFileName,
+      type: 'PDF'
+    })) || [];
+  }, [slides]);
 
   // Handle message submission with indicator items
   const handleSendMessage = useCallback((message: string, indicatorItems: IndicatorItem[], isDocsSearchEnabled: boolean, isWebSearchEnabled: boolean) => {
@@ -122,11 +131,7 @@ export const ChatContainer = memo<ChatContainerProps>(({
         isPdfPreviewOpen={isPdfPreviewOpen}
         indicatorItems={indicatorItems}
         onIndicatorItemsChange={onIndicatorItemsChange}
-        files={slides?.map(slide => ({
-          id: slide.id,
-          name: slide.originalFileName,
-          type: 'PDF'
-        })) || []}
+        files={files}
         courses={courses}
         documents={documents}
         onClearChat={onClearChat}

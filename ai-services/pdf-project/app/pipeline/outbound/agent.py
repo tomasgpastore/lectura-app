@@ -6,23 +6,28 @@ Uses LangGraph for orchestration and manages conversation state.
 import os
 import json
 import logging
+import uuid
 from enum import Enum
 from typing import Annotated, TypedDict, Optional, List, Dict, Any
 
 # LangChain/LangGraph imports
 from langchain_core.messages import HumanMessage, AIMessage, SystemMessage, ToolMessage
-from langchain_core.tools import tool
 from langchain_google_genai import ChatGoogleGenerativeAI
 from langgraph.graph import StateGraph, END
 from langgraph.graph.message import add_messages
 from langgraph.prebuilt import ToolNode, tools_condition
-from langchain_community.tools.tavily_search import TavilySearchResults
 from langchain_core.runnables import RunnableConfig
 from pydantic import BaseModel, Field
 
 # Local imports
 from app.pipeline.outbound.agent_state import AgentStateManager
-from app.pipeline.outbound.rag_retrieval import retrieve_similar_chunks_async
+from app.pipeline.outbound.agent_tools import (
+    rag_search_tool,
+    web_search_tool,
+    create_retrieve_previous_sources_tool,
+    create_current_user_view_tool,
+    create_previous_user_view_tool
+)
 from dotenv import load_dotenv
 
 # Load environment variables
@@ -60,11 +65,20 @@ class WebSource(BaseModel):
     text: str
 
 
+class ImageSource(BaseModel):
+    """Image source information for citations."""
+    id: str
+    type: str  # "current" or "previous"
+    message_id: Optional[str] = None  # For previous images
+    timestamp: Optional[str] = None
+
+
 class AgentResponse(BaseModel):
     """Final response format from the agent."""
     response: str
     rag_sources: List[RagSource] = Field(default_factory=list)
     web_sources: List[WebSource] = Field(default_factory=list)
+    image_sources: List[ImageSource] = Field(default_factory=list)
 
 
 # Graph State Definition
@@ -78,184 +92,8 @@ class GraphState(TypedDict):
     snapshot: Optional[str]
     rag_sources: List[Dict[str, Any]]
     web_sources: List[Dict[str, Any]]
+    image_sources: List[Dict[str, Any]]
     final_response: Optional[str]
-
-
-# Tool Definitions
-def create_retrieve_previous_sources_tool(state_manager: AgentStateManager, user_id: str, course_id: str):
-    """Create a retrieve_previous_sources tool with bound context."""
-    
-    @tool
-    async def retrieve_previous_sources(
-        message_ids: List[str]
-    ) -> Dict[str, Any]:
-        """
-        Retrieve sources from previous messages in the conversation.
-        
-        Args:
-            message_ids: List of message IDs to retrieve sources for
-        
-        Returns:
-            Dictionary containing previous sources
-        """
-        logger.info(f"Retrieving previous sources for messages: {message_ids}")
-        
-        try:
-            # Retrieve sources
-            sources = await state_manager.get_sources_for_messages(
-                user_id=user_id,
-                course_id=course_id,
-                message_ids=message_ids
-            )
-            
-            # Flatten and combine all sources
-            all_rag_sources = []
-            all_web_sources = []
-            
-            for message_id, source_data in sources.items():
-                rag_sources = source_data.get("rag_sources", [])
-                web_sources = source_data.get("web_sources", [])
-                
-                # Add message_id to each source for reference
-                for source in rag_sources:
-                    source["from_message"] = message_id
-                    all_rag_sources.append(source)
-                
-                for source in web_sources:
-                    source["from_message"] = message_id
-                    all_web_sources.append(source)
-            
-            return {
-                "success": True,
-                "rag_sources": all_rag_sources,
-                "web_sources": all_web_sources,
-                "message_count": len(sources)
-            }
-            
-        except Exception as e:
-            logger.error(f"Error retrieving previous sources: {e}")
-            return {
-                "success": False,
-                "error": str(e),
-                "rag_sources": [],
-                "web_sources": []
-            }
-    
-    return retrieve_previous_sources
-
-
-@tool
-async def rag_search_tool(
-    query: str,
-    course_id: str,
-    slides_priority: List[str] = None,
-    limit: int = 10
-) -> Dict[str, Any]:
-    """
-    Search for relevant information in the course materials using RAG.
-    
-    Args:
-        query: The search query optimized for vector search
-        course_id: The course to search within
-        slides_priority: Optional list of slide IDs to prioritize
-        limit: Maximum number of results to return
-    
-    Returns:
-        Dictionary containing search results and metadata
-    """
-    logger.info(f"RAG search - Query: '{query}', Course: {course_id}, Slides: {slides_priority}")
-    
-    try:
-        # Use the real RAG retrieval function
-        results = await retrieve_similar_chunks_async(
-            course_id=course_id,
-            slides=slides_priority or [],
-            chunks=[],  # No chunk filtering
-            prompt=query,
-            limit=limit
-        )
-        
-        # Format results for the agent
-        formatted_results = []
-        for i, result in enumerate(results, 1):
-            metadata = result.get("metadata", {})
-            formatted_results.append({
-                "id": str(i),
-                "slide": metadata.get("slideId", ""),
-                "s3file": metadata.get("s3_path", ""),
-                "start": str(metadata.get("pageStart", "")),
-                "end": str(metadata.get("pageEnd", "")),
-                "text": metadata.get("rawText", ""),
-                "score": result.get("score", 0.0)
-            })
-        
-        return {
-            "success": True,
-            "results": formatted_results,
-            "count": len(formatted_results)
-        }
-        
-    except Exception as e:
-        logger.error(f"RAG search error: {e}")
-        return {
-            "success": False,
-            "error": str(e),
-            "results": []
-        }
-
-
-@tool
-def web_search_tool(query: str, max_results: int = 5) -> Dict[str, Any]:
-    """
-    Search the web for current information using Tavily.
-    
-    Args:
-        query: The search query
-        max_results: Maximum number of results to return
-    
-    Returns:
-        Dictionary containing web search results
-    """
-    logger.info(f"Web search - Query: '{query}'")
-    
-    try:
-        # Initialize Tavily search
-        tavily_api_key = os.getenv("TAVILY_API_KEY")
-        if not tavily_api_key:
-            raise ValueError("TAVILY_API_KEY not found in environment")
-        
-        search = TavilySearchResults(
-            api_key=tavily_api_key,
-            max_results=max_results
-        )
-        
-        # Perform search
-        results = search.invoke(query)
-        
-        # Format results
-        formatted_results = []
-        for i, result in enumerate(results, 1):
-            formatted_results.append({
-                "id": str(i),
-                "title": result.get("title", ""),
-                "url": result.get("url", ""),
-                "text": result.get("content", ""),
-                "score": result.get("score", 0.0)
-            })
-        
-        return {
-            "success": True,
-            "results": formatted_results,
-            "count": len(formatted_results)
-        }
-        
-    except Exception as e:
-        logger.error(f"Web search error: {e}")
-        return {
-            "success": False,
-            "error": str(e),
-            "results": []
-        }
 
 
 class OutboundAgent:
@@ -282,6 +120,8 @@ class OutboundAgent:
         self.user_id = None
         self.course_id = None
         self.retrieve_previous_sources_tool = None
+        self.current_user_view_tool = None
+        self.previous_user_view_tool = None
     
     def _get_tools_for_search_type(self, search_type: SearchType) -> List:
         """Get the appropriate tools based on search type."""
@@ -297,10 +137,16 @@ class OutboundAgent:
         # Add retrieve_previous_sources if available
         if self.retrieve_previous_sources_tool:
             tools.append(self.retrieve_previous_sources_tool)
+        
+        # Add image tools if available
+        if self.current_user_view_tool:
+            tools.append(self.current_user_view_tool)
+        if self.previous_user_view_tool:
+            tools.append(self.previous_user_view_tool)
             
         return tools
     
-    def _build_graph(self, user_id: str, course_id: str) -> StateGraph:
+    def _build_graph(self, user_id: str, course_id: str, snapshot: Optional[str] = None) -> StateGraph:
         """Build the LangGraph workflow with specific user/course context."""
         # Create the retrieve_previous_sources tool with bound context
         self.user_id = user_id
@@ -309,13 +155,24 @@ class OutboundAgent:
             self.state_manager, user_id, course_id
         )
         
+        # Create image tools
+        if snapshot:
+            self.current_user_view_tool = create_current_user_view_tool(snapshot)
+        self.previous_user_view_tool = create_previous_user_view_tool(
+            self.state_manager, user_id, course_id
+        )
+        
         workflow = StateGraph(GraphState)
         
         # Add nodes
         workflow.add_node("agent", self._agent_node)
         
-        # Create tool node with all tools including the bound retrieve_previous_sources
+        # Create tool node with all tools
         all_tools = [rag_search_tool, web_search_tool, self.retrieve_previous_sources_tool]
+        if self.current_user_view_tool:
+            all_tools.append(self.current_user_view_tool)
+        all_tools.append(self.previous_user_view_tool)
+        
         workflow.add_node("tools", ToolNode(all_tools))
         workflow.add_node("format_response", self._format_response_node)
         
@@ -348,22 +205,7 @@ class OutboundAgent:
         tools = self._get_tools_for_search_type(search_type)
         
         # Build system prompt based on search type
-        system_prompt = self._build_system_prompt(search_type, course_id, slides_priority)
-        
-        # Add snapshot to the last message if provided
-        logger.info(f"Agent node - snapshot exists: {snapshot is not None}")
-        if snapshot:
-            logger.info(f"Agent node - snapshot length: {len(snapshot)}")
-        if snapshot and messages:
-            last_message = messages[-1]
-            if isinstance(last_message, HumanMessage):
-                # Create multimodal message with text and image for Gemini
-                # Gemini expects the image in image_url format with data URI
-                content = [
-                    {"type": "text", "text": last_message.content},
-                    {"type": "image_url", "image_url": f"data:image/png;base64,{snapshot}"},
-                ]
-                messages[-1] = HumanMessage(content=content)
+        system_prompt = self._build_system_prompt(search_type, course_id, slides_priority, has_snapshot=bool(snapshot))
         
         # Bind tools to LLM
         if tools:
@@ -387,7 +229,7 @@ class OutboundAgent:
         
         return {"messages": [response]}
     
-    def _build_system_prompt(self, search_type: SearchType, course_id: str, slides_priority: List[str]) -> str:
+    def _build_system_prompt(self, search_type: SearchType, course_id: str, slides_priority: List[str], has_snapshot: bool = False) -> str:
         """Build the system prompt based on search type and context."""
         base_prompt = f"""You are an intelligent assistant helping students with course materials.
 Course ID: {course_id}"""
@@ -395,11 +237,23 @@ Course ID: {course_id}"""
         if slides_priority:
             base_prompt += f"\nPriority slides: {', '.join(slides_priority)}"
         
+        # Add image tool information if snapshot is available
+        if has_snapshot:
+            base_prompt += "\n\nIMPORTANT: The user has provided an image with their message. You MUST use the current_user_view tool to see this image when the user asks about it or references it in any way."
+        
+        base_prompt += "\nYou can use previous_user_view to access images from earlier in the conversation if needed."
+        
         if search_type == SearchType.DEFAULT:
             return base_prompt + """
             
 Answer the user's question based on your general knowledge. Be helpful and informative.
-You can use retrieve_previous_sources to access sources from earlier in the conversation if needed."""
+
+Available tools:
+- current_user_view: Use this to view any image the user has provided
+- previous_user_view: Use this to access images from earlier messages
+- retrieve_previous_sources: Use this to access sources from earlier messages
+
+If the user asks about an image or references something visual, you MUST use the appropriate image viewing tool."""
         
         elif search_type == SearchType.RAG:
             return base_prompt + """
@@ -447,6 +301,7 @@ Note: You can use retrieve_previous_sources to access sources from earlier messa
         messages = state["messages"]
         rag_sources = []
         web_sources = []
+        image_sources = []
         
         # Extract the final AI message
         final_message = ""
@@ -493,12 +348,30 @@ Note: You can use retrieve_previous_sources to access sources from earlier messa
                                 url=source["url"],
                                 text=source["text"]
                             ))
+                    
+                    elif msg.name == "current_user_view" and tool_result.get("success"):
+                        # Add current image as a source
+                        image_sources.append(ImageSource(
+                            id="1",
+                            type="current",
+                            message_id=None,
+                            timestamp=None
+                        ))
+                    
+                    elif msg.name == "previous_user_view" and tool_result.get("success"):
+                        # Add previous images as sources
+                        for idx, img in enumerate(tool_result.get("images", []), 1):
+                            image_sources.append(ImageSource(
+                                id=str(idx + 1),  # Start from 2 since current is 1
+                                type="previous",
+                                message_id=img.get("message_id"),
+                                timestamp=img.get("timestamp")
+                            ))
                             
                 except Exception as e:
                     logger.error(f"Error processing tool message: {e}")
         
         # Generate message ID for source storage
-        import uuid
         message_id = str(uuid.uuid4())
         
         # Store sources separately (async)
@@ -520,7 +393,8 @@ Note: You can use retrieve_previous_sources to access sources from earlier messa
         return {
             "final_response": final_message,
             "rag_sources": [s.dict() for s in rag_sources],
-            "web_sources": [s.dict() for s in web_sources]
+            "web_sources": [s.dict() for s in web_sources],
+            "image_sources": [s.dict() for s in image_sources]
         }
     
     async def process_query(
@@ -547,12 +421,6 @@ Note: You can use retrieve_previous_sources to access sources from earlier messa
             AgentResponse with the answer and sources
         """
         try:
-            # Build graph with specific user/course context
-            self.graph = self._build_graph(user_id, course_id).compile()
-            
-            # Get conversation history
-            history = await self.state_manager.get_conversation_history(user_id, course_id)
-            
             # Process snapshot
             snapshot_b64 = None
             logger.info(f"Snapshot parameter received: {snapshot is not None}")
@@ -561,6 +429,22 @@ Note: You can use retrieve_previous_sources to access sources from earlier messa
             if snapshot and len(snapshot) > 0:
                 snapshot_b64 = snapshot[0]
                 logger.info(f"Using snapshot with length: {len(snapshot_b64)}")
+            
+            # Build graph with specific user/course context and snapshot
+            self.graph = self._build_graph(user_id, course_id, snapshot_b64).compile()
+            
+            # Get conversation history (will be stripped of images)
+            history = await self.state_manager.get_conversation_history(user_id, course_id)
+            
+            # Save current image if provided
+            if snapshot_b64:
+                message_id = str(uuid.uuid4())
+                await self.state_manager.save_image(
+                    user_id=user_id,
+                    course_id=course_id,
+                    message_id=message_id,
+                    image=snapshot_b64
+                )
             
             # Build initial state
             initial_state = {
@@ -572,6 +456,7 @@ Note: You can use retrieve_previous_sources to access sources from earlier messa
                 "snapshot": snapshot_b64,
                 "rag_sources": [],
                 "web_sources": [],
+                "image_sources": [],
                 "final_response": None
             }
             
@@ -590,7 +475,8 @@ Note: You can use retrieve_previous_sources to access sources from earlier messa
             return AgentResponse(
                 response=final_state.get("final_response", ""),
                 rag_sources=[RagSource(**s) for s in final_state.get("rag_sources", [])],
-                web_sources=[WebSource(**s) for s in final_state.get("web_sources", [])]
+                web_sources=[WebSource(**s) for s in final_state.get("web_sources", [])],
+                image_sources=[ImageSource(**s) for s in final_state.get("image_sources", [])]
             )
             
         except Exception as e:
@@ -598,7 +484,8 @@ Note: You can use retrieve_previous_sources to access sources from earlier messa
             return AgentResponse(
                 response=f"I encountered an error processing your request: {str(e)}",
                 rag_sources=[],
-                web_sources=[]
+                web_sources=[],
+                image_sources=[]
             )
 
 
