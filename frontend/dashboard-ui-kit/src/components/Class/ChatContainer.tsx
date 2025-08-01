@@ -1,7 +1,7 @@
 import React, { useRef, memo, useCallback } from 'react';
 import { ChatMessageUI, Course } from '../../types';
 import { ChatInterface } from './ChatInterface';
-import { ChatInputStandalone, ChatInputStandaloneHandle } from './ChatInputStandalone';
+import { ChatInput, ChatInputHandle } from './ChatInput';
 import { IndicatorItem } from './IndicatorsList';
 
 interface Document {
@@ -19,7 +19,7 @@ interface ChatContainerProps {
   slides?: Array<{ id: string; originalFileName: string }>;
   
   // Chat submission
-  onSubmit: (message: string) => void;
+  onSubmit: (message: string, isDocsSearchEnabled?: boolean, isWebSearchEnabled?: boolean) => void;
   
   // Optional features
   selectedTextForChat?: string;
@@ -45,6 +45,11 @@ interface ChatContainerProps {
   value?: string;
   onValueChange?: (value: string) => void;
   
+  // Controlled search button states
+  docsSearchEnabled?: boolean;
+  onDocsSearchEnabledChange?: (enabled: boolean) => void;
+  webSearchEnabled?: boolean;
+  onWebSearchEnabledChange?: (enabled: boolean) => void;
 }
 
 export const ChatContainer = memo<ChatContainerProps>(({
@@ -72,22 +77,26 @@ export const ChatContainer = memo<ChatContainerProps>(({
   onSaveCurrentState,
   value,
   onValueChange,
+  docsSearchEnabled,
+  onDocsSearchEnabledChange,
+  webSearchEnabled,
+  onWebSearchEnabledChange,
 }) => {
-  const chatInputRef = useRef<ChatInputStandaloneHandle>(null);
+  const chatInputRef = useRef<ChatInputHandle>(null);
 
   // Handle message submission with indicator items
-  const handleSendMessage = useCallback((message: string, indicatorItems: IndicatorItem[]) => {
+  const handleSendMessage = useCallback((message: string, indicatorItems: IndicatorItem[], isDocsSearchEnabled: boolean, isWebSearchEnabled: boolean) => {
     // Notify parent about indicator items if needed
     onIndicatorItemsChange?.(indicatorItems);
     
-    // Submit the message
-    onSubmit(message);
+    // Submit the message with search states
+    onSubmit(message, isDocsSearchEnabled, isWebSearchEnabled);
   }, [onSubmit, onIndicatorItemsChange]);
 
   // Wrap onSubmit for ChatInterface compatibility
   const handleSubmit = useCallback((e: React.FormEvent) => {
     e.preventDefault();
-    // This is just for compatibility - actual submission happens through ChatInputStandalone
+    // This is just for compatibility - actual submission happens through ChatInput
   }, []);
 
   return (
@@ -104,7 +113,7 @@ export const ChatContainer = memo<ChatContainerProps>(({
       />
       
       {/* Chat Input - sticky at bottom */}
-      <ChatInputStandalone
+      <ChatInput
         ref={chatInputRef}
         onSendMessage={handleSendMessage}
         isAiLoading={isAiLoading}
@@ -128,6 +137,10 @@ export const ChatContainer = memo<ChatContainerProps>(({
         onSaveCurrentState={onSaveCurrentState}
         value={value}
         onValueChange={onValueChange}
+        docsSearchEnabled={docsSearchEnabled}
+        onDocsSearchEnabledChange={onDocsSearchEnabledChange}
+        webSearchEnabled={webSearchEnabled}
+        onWebSearchEnabledChange={onWebSearchEnabledChange}
       />
     </div>
   );

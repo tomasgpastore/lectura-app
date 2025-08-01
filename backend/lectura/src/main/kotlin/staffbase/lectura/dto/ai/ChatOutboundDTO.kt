@@ -1,6 +1,7 @@
 package staffbase.lectura.dto.ai
 
 import com.fasterxml.jackson.annotation.JsonProperty
+import staffbase.lectura.ai.SearchType
 
 data class ChatOutboundDTO(
     @JsonProperty("course_id")
@@ -9,5 +10,9 @@ data class ChatOutboundDTO(
     val userId: String,
     @JsonProperty("user_prompt")
     val userPrompt: String,
-    val snapshot: String? = null
+    @JsonProperty("slide_priority")
+    val slidePriority: List<String> = emptyList(),
+    @JsonProperty("search_type")
+    val searchType: String = "DEFAULT",
+    val snapshots: List<String> = emptyList(),
 )

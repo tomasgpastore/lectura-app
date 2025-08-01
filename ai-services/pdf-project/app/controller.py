@@ -7,16 +7,11 @@ from contextlib import asynccontextmanager
 from app.config import validate_environment
 from app.pipeline.inbound.inbound_pipeline import process_pdf_pipeline, cleanup_inbound_connections
 from app.pipeline.manager.management_pipeline import delete_vectors_by_metadata, cleanup_management_connections
-from app.pipeline.out.outbound_pipeline import (
+from app.pipeline.outbound.outbound_pipeline import (
     OutboundRequest, 
     ChatResponseDTO,
-    process_outbound_pipeline_optimized,
-    cleanup_connections
-)
-from app.pipeline.out.pre_outbound import (
-    QueryAnalysisRequest,
-    process_pre_outbound_pipeline,
-    cleanup_pre_outbound_connections
+    process_outbound_pipeline,
+    cleanup_outbound_connections
 )
 
 # Configure logging
@@ -30,10 +25,9 @@ async def lifespan(app: FastAPI):
     yield
     # Shutdown
     logger.info("Application shutting down, cleaning up resources...")
-    cleanup_connections()
+    cleanup_outbound_connections()
     cleanup_inbound_connections()
     cleanup_management_connections()
-    cleanup_pre_outbound_connections()
     logger.info("Resource cleanup completed")
 
 app = FastAPI(
@@ -163,7 +157,7 @@ async def process_pdf(request: InboundRequest):
 @app.delete("/management", status_code=status.HTTP_200_OK, response_model=ManagementResponse)
 async def delete_vectors(request: ManagementRequest):
     """
-    Delete vectors from Pinecone based on metadata filters
+    Delete vectors from MongoDB based on metadata filters
     
     Args:
         request: Contains course_id, slide_id, and s3_file_name for filtering
@@ -235,21 +229,23 @@ async def delete_vectors(request: ManagementRequest):
 @app.post("/outbound", status_code=status.HTTP_200_OK, response_model=ChatResponseDTO)
 async def query_llm(request: OutboundRequest):
     """
-    Process user query through the intelligent outbound pipeline with pre-analysis
+    Process user query through the intelligent agent with RAG/Web search capabilities
     
-    Pipeline steps:
-    1. Pre-outbound analysis: Determine if retrieval is needed and expand query
-    2. Conditional retrieval: Only retrieve documents if analysis indicates it's needed
-    3. Generate complete LLM response with relevant sources (if any)
+    The agent supports:
+    - DEFAULT: Direct LLM response without search
+    - RAG: Search in course materials using vector similarity
+    - WEB: Search the internet for current information
+    - RAG_WEB: Combine course materials and web search
     
     Args:
-        request: Contains course_id, user_id, user_prompt, and optional snapshot
+        request: Contains user, course, prompt, searchType, slides priority, and optional snapshots
         
     Returns:
-        JSON response with complete LLM response and sources
+        JSON response with agent response and sources (ragSources and webSources)
     """
-    logger.info(f"Received intelligent outbound request: course_id={request.course}, user_id={request.user}")
-    logger.info(f"User query: '{request.prompt[:100]}...'")
+    logger.info(f"Received outbound request: course_id={request.course_id}, user_id={request.user_id}")
+    logger.info(f"Search type: {request.search_type}, Slides: {request.slide_priority}")
+    logger.info(f"User query: '{request.user_prompt[:100]}...'")
     
     # Validate required environment variables
     is_valid, missing_vars = validate_environment()
@@ -261,41 +257,18 @@ async def query_llm(request: OutboundRequest):
         )
     
     try:
-        # Step 1: Analyze query to determine if retrieval is needed
-        logger.info("🔍 Step 1: Analyzing query intent...")
-        analysis_request = QueryAnalysisRequest(
-            user_query=request.prompt,
-            course_id=request.course,
-            user_id=request.user
-        )
-        
-        query_analysis = await process_pre_outbound_pipeline(analysis_request)
-        
-        logger.info(f"✅ Query analysis completed:")
-        logger.info(f"   Needs context: {query_analysis.needs_context}")
-        logger.info(f"   Image priority: {query_analysis.image_priority}")
-        logger.info(f"   Reasoning: {query_analysis.reasoning}")
-        if query_analysis.expanded_query != request.prompt:
-            logger.info(f"   Expanded query: '{query_analysis.expanded_query[:100]}...'")
-        
-        # Step 2: Process through optimized outbound pipeline with conditional retrieval
-        logger.info("🚀 Step 2: Starting optimized outbound pipeline...")
-        
-        response = await process_outbound_pipeline_optimized(
-            request=request,
-            expanded_query=query_analysis.expanded_query,
-            needs_context=query_analysis.needs_context,
-            image_priority=query_analysis.image_priority
-        )
+        # Process through the intelligent agent
+        response = await process_outbound_pipeline(request)
         
         logger.info(f"✅ Outbound pipeline completed successfully")
         logger.info(f"   Response length: {len(response.response)} chars")
-        logger.info(f"   Sources found: {len(response.data)}")
+        logger.info(f"   RAG sources: {len(response.ragSources)}")
+        logger.info(f"   Web sources: {len(response.webSources)}")
         
         return response
         
     except Exception as e:
-        logger.error(f"Unexpected error in intelligent outbound pipeline: {str(e)}")
+        logger.error(f"Unexpected error in outbound pipeline: {str(e)}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Internal processing error: {str(e)}"

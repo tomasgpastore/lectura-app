@@ -12,8 +12,9 @@ from pymongo.errors import BulkWriteError
 from dotenv import load_dotenv
 import time
 
-# Load environment variables
-load_dotenv()
+# Load environment variables only if not already loaded
+if not os.getenv('MONGO_URI'):
+    load_dotenv()
 
 
 def get_mongo_client() -> MongoClient:

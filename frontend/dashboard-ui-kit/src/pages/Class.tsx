@@ -36,6 +36,8 @@ export const Class: React.FC = () => {
     removable: boolean;
   }>>([]);
   const [chatInputValue, setChatInputValue] = useState<string>('');
+  const [docsSearchEnabled, setDocsSearchEnabled] = useState<boolean>(true);
+  const [webSearchEnabled, setWebSearchEnabled] = useState<boolean>(false);
 
 
   // Fetch course data with better caching while ensuring data loads
@@ -133,18 +135,18 @@ export const Class: React.FC = () => {
   };
 
   // Handle form submission with combined text
-  const handleCombinedSubmit = (message: string) => {
-    // The message already contains the selected text from ChatInputStandalone
+  const handleCombinedSubmit = (message: string, isDocsSearchEnabled?: boolean, isWebSearchEnabled?: boolean) => {
+    // The message already contains the selected text from ChatInput
     // so we don't need to add it again here
     const trimmedMessage = message.trim();
     
     if (trimmedMessage) {
       // Use the new method to send with custom message
-      chatManager.handleSubmitWithMessage(trimmedMessage);
+      chatManager.handleSubmitWithMessage(trimmedMessage, isDocsSearchEnabled, isWebSearchEnabled);
       
       // Clear selected text
       clearSelectedText();
-      // Note: chatInputValue will be cleared by the ChatInputStandalone component itself
+      // Note: chatInputValue will be cleared by the ChatInput component itself
     }
   };
 
@@ -168,6 +170,8 @@ export const Class: React.FC = () => {
         chatInputValue,
         selectedTextForChat,
         chatIndicatorItems,
+        docsSearchEnabled,
+        webSearchEnabled,
       };
       
       saveClassState(id, stateToSave);
@@ -175,7 +179,7 @@ export const Class: React.FC = () => {
   }, [id, documentManager.selectedDocument, documentManager.currentPage, 
       chatManager.messages, chatManager.streamingMessageIds,
       isFileManagerCollapsed, chatInputValue, selectedTextForChat, 
-      chatIndicatorItems, saveClassState]);
+      chatIndicatorItems, docsSearchEnabled, webSearchEnabled, saveClassState]);
   
   // Save state before ID changes
   useEffect(() => {
@@ -202,11 +206,13 @@ export const Class: React.FC = () => {
       chatInputValue,
       selectedTextForChat,
       chatIndicatorItems,
+      docsSearchEnabled,
+      webSearchEnabled,
     };
   }, [documentManager.selectedDocument, documentManager.currentPage,
       chatManager.messages, chatManager.streamingMessageIds,
       isFileManagerCollapsed, chatInputValue, 
-      selectedTextForChat, chatIndicatorItems]);
+      selectedTextForChat, chatIndicatorItems, docsSearchEnabled, webSearchEnabled]);
   
   // Restore state when class ID changes
   useEffect(() => {
@@ -223,12 +229,16 @@ export const Class: React.FC = () => {
         setSelectedTextForChat(storedState.selectedTextForChat);
         setChatIndicatorItems(storedState.chatIndicatorItems);
         setChatInputValue(storedState.chatInputValue);
+        setDocsSearchEnabled(storedState.docsSearchEnabled !== undefined ? storedState.docsSearchEnabled : true);
+        setWebSearchEnabled(storedState.webSearchEnabled || false);
       } else {
         // Reset to defaults for new class
         setIsFileManagerCollapsed(false);
         setSelectedTextForChat('');
         setChatIndicatorItems([]);
         setChatInputValue('');
+        setDocsSearchEnabled(true);
+        setWebSearchEnabled(false);
       }
     }
     previousClassIdRef.current = id;
@@ -244,7 +254,7 @@ export const Class: React.FC = () => {
     return (
       <div className="min-h-screen bg-blue-50 dark:bg-neutral-900 flex items-center justify-center">
         <div className="text-lg text-red-600 dark:text-red-400">
-          Failed to load course
+          Failed to load classes
         </div>
       </div>
     );
@@ -256,7 +266,7 @@ export const Class: React.FC = () => {
       <div className="min-h-screen bg-blue-50 dark:bg-neutral-900 flex items-center justify-center">
         <div className="text-center">
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-orange-600 mx-auto mb-4"></div>
-          <div className="text-lg text-gray-600 dark:text-gray-400">Loading course...</div>
+          <div className="text-lg text-gray-600 dark:text-gray-400">Loading class...</div>
         </div>
       </div>
     );
@@ -477,6 +487,10 @@ export const Class: React.FC = () => {
                   }
                 }}
                 onSaveCurrentState={saveCurrentState}
+                docsSearchEnabled={docsSearchEnabled}
+                onDocsSearchEnabledChange={setDocsSearchEnabled}
+                webSearchEnabled={webSearchEnabled}
+                onWebSearchEnabledChange={setWebSearchEnabled}
             />
           );
 

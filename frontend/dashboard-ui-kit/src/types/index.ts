@@ -39,6 +39,9 @@ export interface ChatSource {
   end: string;
   text: string;
   preview_text?: string;
+  type?: 'rag' | 'web'; // Add type to distinguish source types
+  title?: string; // For web sources
+  url?: string; // For web sources
 }
 
 export interface ChatMessageUI {
@@ -84,14 +87,22 @@ export interface PatchSlideDTO {
   originalFileName?: string;
 }
 
+export enum SearchType {
+  DEFAULT,
+  RAG,
+  WEB,
+  RAG_WEB,
+}
+
 export interface ChatFrontDTO {
   courseId: string;
   userPrompt: string;
-  snapshot?: string;
-  priorityDocuments?: string[];
+  snapshot: string[];
+  priorityDocuments: string[];
+  searchType: SearchType;
 }
 
-export interface Source {
+export interface RagSource {
   id: string;
   slide: string;
   s3file: string;
@@ -100,7 +111,15 @@ export interface Source {
   text: string;
 }
 
+export interface WebSource {
+  id: string;
+  title: string;
+  url: string;
+  text: string;
+}
+
 export interface ChatResponseDTO {
-  data: Source[];
   response: string;
+  ragSources: RagSource[];
+  webSources: WebSource[];
 }
