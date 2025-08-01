@@ -1,5 +1,5 @@
 import React, { useRef, memo, useCallback, useState, useEffect, forwardRef, useImperativeHandle } from 'react';
-import { ArrowUp, Plus } from 'lucide-react';
+import { ArrowUp, Plus, FileText, Globe } from 'lucide-react';
 import { TextCloudPopup } from './TextCloudPopup';
 import { CommandSuggestions } from './CommandSuggestions';
 import { FileSuggestions } from './FileSuggestions';
@@ -21,8 +21,8 @@ interface FileItem {
 }
 
 // Minimal props - only what's absolutely necessary for functionality
-interface ChatInputStandaloneProps {
-  onSendMessage: (message: string, indicatorItems: IndicatorItem[]) => void;
+interface ChatInputProps {
+  onSendMessage: (message: string, indicatorItems: IndicatorItem[], isDocsSearchEnabled: boolean, isWebSearchEnabled: boolean) => void;
   isAiLoading: boolean;
   
   // Optional features
@@ -50,14 +50,20 @@ interface ChatInputStandaloneProps {
   onRenameDocument?: (documentId: string, newName: string) => void;
   onFilesUploaded?: (files: File[]) => void;
   onSaveCurrentState?: () => void;
+  
+  // Controlled search button states
+  docsSearchEnabled?: boolean;
+  onDocsSearchEnabledChange?: (enabled: boolean) => void;
+  webSearchEnabled?: boolean;
+  onWebSearchEnabledChange?: (enabled: boolean) => void;
 }
 
-export interface ChatInputStandaloneHandle {
+export interface ChatInputHandle {
   focus: () => void;
   clear: () => void;
 }
 
-export const ChatInputStandalone = memo(forwardRef<ChatInputStandaloneHandle, ChatInputStandaloneProps>(({
+export const ChatInput = memo(forwardRef<ChatInputHandle, ChatInputProps>(({
   onSendMessage,
   isAiLoading,
   selectedTextForChat,
@@ -76,6 +82,10 @@ export const ChatInputStandalone = memo(forwardRef<ChatInputStandaloneHandle, Ch
   onRenameDocument,
   onFilesUploaded,
   onSaveCurrentState,
+  docsSearchEnabled: externalDocsSearchEnabled,
+  onDocsSearchEnabledChange,
+  webSearchEnabled: externalWebSearchEnabled,
+  onWebSearchEnabledChange,
 }, ref) => {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const lastHeightRef = useRef<number>(0);
@@ -95,6 +105,16 @@ export const ChatInputStandalone = memo(forwardRef<ChatInputStandaloneHandle, Ch
   const [showFiles, setShowFiles] = useState(false);
   const [selectedFileIndex, setSelectedFileIndex] = useState(0);
   const [fileFilter, setFileFilter] = useState('');
+  
+  // Toggle states for search buttons - use external state if provided
+  const [localDocsSearchEnabled, setLocalDocsSearchEnabled] = useState(true); // Enabled by default
+  const [localWebSearchEnabled, setLocalWebSearchEnabled] = useState(false);
+  
+  const isDocsSearchEnabled = externalDocsSearchEnabled !== undefined ? externalDocsSearchEnabled : localDocsSearchEnabled;
+  const isWebSearchEnabled = externalWebSearchEnabled !== undefined ? externalWebSearchEnabled : localWebSearchEnabled;
+  
+  const setIsDocsSearchEnabled = onDocsSearchEnabledChange || setLocalDocsSearchEnabled;
+  const setIsWebSearchEnabled = onWebSearchEnabledChange || setLocalWebSearchEnabled;
   
   // Handle PDF preview state changes
   useEffect(() => {
@@ -384,8 +404,8 @@ export const ChatInputStandalone = memo(forwardRef<ChatInputStandaloneHandle, Ch
           : `"${selectedTextForChat}"`; // Always wrap in quotes
       }
       
-      // Send message with current indicator items
-      onSendMessage(finalMessage, [...indicatorItems]);
+      // Send message with current indicator items and search states
+      onSendMessage(finalMessage, [...indicatorItems], isDocsSearchEnabled, isWebSearchEnabled);
       
       // Clear input
       setInputValue('');
@@ -500,8 +520,8 @@ export const ChatInputStandalone = memo(forwardRef<ChatInputStandaloneHandle, Ch
                 onChange={handleTextChange}
                 onInput={handleInput}
                 onKeyDown={handleKeyDown}
-                placeholder="Ask a question about your documents..."
-                className="w-full px-1.5 border-0 focus:outline-none bg-transparent text-gray-900 dark:text-white resize-none text-base placeholder:text-base py-1.5 min-h-[60px] max-h-[220px]"
+                placeholder="Ask anything or type  /  for commands"
+                className="w-full px-4 border-0 focus:outline-none bg-transparent text-gray-900 dark:text-white resize-none text-base placeholder:text-base py-1.5 min-h-[60px] max-h-[220px]"
                 rows={2}
                 style={{
                   minHeight: '60px',
@@ -513,33 +533,66 @@ export const ChatInputStandalone = memo(forwardRef<ChatInputStandaloneHandle, Ch
               />
 
               <div className="pr-1.5 pb-1.5 pl-1.5 flex justify-between items-center gap-1">
-                {onFilesUploaded && (
-                  <>
-                    <button
-                      type="button"
-                      onClick={() => fileInputRef.current?.click()}
-                      className="p-2 text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200 rounded-md transition-all duration-200 hover:bg-gray-100 dark:hover:bg-neutral-600"
-                      title="Upload PDF"
-                    >
-                      <Plus className="w-5 h-5" />
-                    </button>
-                    <input
-                      ref={fileInputRef}
-                      type="file"
-                      accept=".pdf"
-                      multiple
-                      onChange={(e) => {
-                        const selectedFiles = Array.from(e.target.files || []);
-                        if (selectedFiles.length > 0) {
-                          onFilesUploaded(selectedFiles);
-                          // Clear the input so the same file can be selected again
-                          e.target.value = '';
-                        }
-                      }}
-                      className="hidden"
-                    />
-                  </>
-                )}
+                <div className="flex items-center gap-1">
+                  {onFilesUploaded && (
+                    <>
+                      <button
+                        type="button"
+                        onClick={() => fileInputRef.current?.click()}
+                        className="p-2 text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200 rounded-md transition-all duration-200 hover:bg-gray-100 dark:hover:bg-neutral-600"
+                        title="Upload PDF"
+                      >
+                        <Plus className="w-5 h-5" />
+                      </button>
+                      <input
+                        ref={fileInputRef}
+                        type="file"
+                        accept=".pdf"
+                        multiple
+                        onChange={(e) => {
+                          const selectedFiles = Array.from(e.target.files || []);
+                          if (selectedFiles.length > 0) {
+                            onFilesUploaded(selectedFiles);
+                            // Clear the input so the same file can be selected again
+                            e.target.value = '';
+                          }
+                        }}
+                        className="hidden"
+                      />
+                    </>
+                  )}
+                  
+                  {/* Docs Search Toggle */}
+                  <button
+                    type="button"
+                    onClick={() => setIsDocsSearchEnabled(!isDocsSearchEnabled)}
+                    className={`px-3 py-2 rounded-md transition-all duration-200 flex items-center gap-2 ${
+                      isDocsSearchEnabled 
+                        ? 'text-gray-700 dark:text-gray-200 bg-gray-100 dark:bg-neutral-600 hover:bg-gray-200 dark:hover:bg-neutral-500' 
+                        : 'text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-neutral-600'
+                    }`}
+                    title="Docs Search"
+                  >
+                    <FileText className="w-4 h-4" />
+                    <span className="text-sm font-medium">Docs search</span>
+                  </button>
+                  
+                  {/* Web Search Toggle */}
+                  <button
+                    type="button"
+                    onClick={() => setIsWebSearchEnabled(!isWebSearchEnabled)}
+                    className={`px-3 py-2 rounded-md transition-all duration-200 flex items-center gap-2 ${
+                      isWebSearchEnabled 
+                        ? 'text-gray-700 dark:text-gray-200 bg-gray-100 dark:bg-neutral-600 hover:bg-gray-200 dark:hover:bg-neutral-500' 
+                        : 'text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-neutral-600'
+                    }`}
+                    title="Web Search"
+                  >
+                    <Globe className="w-4 h-4" />
+                    <span className="text-sm font-medium">Web search</span>
+                  </button>
+                </div>
+                
                 <button
                   type="submit"
                   disabled={isAiLoading || (!inputValue.trim() && !selectedTextForChat?.trim())}
@@ -560,4 +613,4 @@ export const ChatInputStandalone = memo(forwardRef<ChatInputStandaloneHandle, Ch
   );
 }));
 
-ChatInputStandalone.displayName = 'ChatInputStandalone';
+ChatInput.displayName = 'ChatInput';

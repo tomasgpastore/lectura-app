@@ -4,8 +4,9 @@ import remarkGfm from 'remark-gfm';
 import remarkMath from 'remark-math';
 import rehypeKatex from 'rehype-katex';
 import rehypeRaw from 'rehype-raw';
-import { Copy, Check } from 'lucide-react';
+import { Copy, Check, Link } from 'lucide-react';
 import { ChatSource } from '../../types';
+import { WebSourceModal } from './WebSourceModal';
 import 'katex/dist/katex.min.css';
 
 interface MarkdownRendererProps {
@@ -110,21 +111,33 @@ export const MarkdownRenderer: React.FC<MarkdownRendererProps> = React.memo(({
 }) => {
   const [selectedSource, setSelectedSource] = useState<ChatSource | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isWebModalOpen, setIsWebModalOpen] = useState(false);
   const [copiedCode, setCopiedCode] = useState<string | null>(null);
   const [expandedCitations, setExpandedCitations] = useState<Set<string>>(new Set());
+  const [selectedWebSource, setSelectedWebSource] = useState<ChatSource | null>(null);
 
-  const handleSourceClick = (sourceNumber: number) => {
+  const handleSourceClick = (sourceNumber: number, isWebSource: boolean = false) => {
     // Try to get source from mapping first, then fallback to array
     const source = sourceMapping[sourceNumber.toString()] || sources[sourceNumber - 1];
     if (source) {
-      setSelectedSource(source);
-      setIsModalOpen(true);
+      if (isWebSource || source.type === 'web') {
+        setSelectedWebSource(source);
+        setIsWebModalOpen(true);
+      } else {
+        setSelectedSource(source);
+        setIsModalOpen(true);
+      }
     }
   };
 
   const closeModal = () => {
     setIsModalOpen(false);
     setSelectedSource(null);
+  };
+
+  const closeWebModal = () => {
+    setIsWebModalOpen(false);
+    setSelectedWebSource(null);
   };
 
   const handleCopyCode = async (code: string) => {
@@ -143,8 +156,8 @@ export const MarkdownRenderer: React.FC<MarkdownRendererProps> = React.memo(({
     const hasCursor = text.includes('⟨CURSOR⟩');
     const cleanText = text.replace(/⟨CURSOR⟩/g, '');
     
-    // Updated regex to handle both single citations [^1], multiple citations [^1, ^2, ^3], and [^Current Page]
-    const citationRegex = /\[\^([0-9, ]+|Current Page)\]/g;
+    // Updated regex to handle both single citations [^1], multiple citations [^1, ^2, ^3], [^Current Page], and web citations {^1}
+    const citationRegex = /\[\^([0-9, ]+|Current Page)\]|\{\^([0-9, ]+)\}/g;
     const parts: React.ReactNode[] = [];
     let lastIndex = 0;
     let match: RegExpExecArray | null;
@@ -156,7 +169,8 @@ export const MarkdownRenderer: React.FC<MarkdownRendererProps> = React.memo(({
       }
 
       // Parse multiple source numbers from the match
-      const sourceNumbersStr = match[1];
+      const sourceNumbersStr = match[1] || match[2]; // match[1] for [^x], match[2] for {^x}
+      const isWebCitation = !!match[2]; // True if it's a {^x} pattern
       
       // Handle [^Current Page] special case
       if (sourceNumbersStr === 'Current Page') {
@@ -183,11 +197,11 @@ export const MarkdownRenderer: React.FC<MarkdownRendererProps> = React.memo(({
           const citationButtons = visibleSources.map((sourceNumber, index) => (
             <button
               key={`citation-${sourceNumber}-${match!.index}-${index}`}
-              onClick={() => handleSourceClick(sourceNumber)}
-              className="inline-flex items-center px-1.5 py-0.5 ml-0.5 mr-0.5 text-xs font-medium bg-orange-100 hover:bg-orange-200 dark:bg-orange-900 dark:hover:bg-orange-800 text-orange-800 dark:text-orange-200 rounded transition-colors cursor-pointer border border-orange-200 dark:border-orange-700"
-              title={`View source ${sourceNumber}`}
+              onClick={() => handleSourceClick(sourceNumber, isWebCitation)}
+              className={`inline-flex items-center px-1.5 py-0.5 ml-0.5 mr-0.5 text-xs font-medium ${isWebCitation ? 'bg-blue-100 hover:bg-blue-200 dark:bg-blue-900 dark:hover:bg-blue-800 text-blue-800 dark:text-blue-200 border-blue-200 dark:border-blue-700' : 'bg-orange-100 hover:bg-orange-200 dark:bg-orange-900 dark:hover:bg-orange-800 text-orange-800 dark:text-orange-200 border-orange-200 dark:border-orange-700'} rounded transition-colors cursor-pointer border`}
+              title={`View ${isWebCitation ? 'web' : ''} source ${sourceNumber}`}
             >
-              {sourceNumber}
+              {isWebCitation ? <Link className="w-3 h-3" /> : sourceNumber}
             </button>
           ));
           
@@ -217,11 +231,11 @@ export const MarkdownRenderer: React.FC<MarkdownRendererProps> = React.memo(({
           const citationButtons = sourceNumbers.map((sourceNumber, index) => (
             <button
               key={`citation-${sourceNumber}-${match!.index}-${index}`}
-              onClick={() => handleSourceClick(sourceNumber)}
-              className="inline-flex items-center px-1.5 py-0.5 ml-0.5 mr-0.5 text-xs font-medium bg-orange-100 hover:bg-orange-200 dark:bg-orange-900 dark:hover:bg-orange-800 text-orange-800 dark:text-orange-200 rounded transition-colors cursor-pointer border border-orange-200 dark:border-orange-700"
-              title={`View source ${sourceNumber}`}
+              onClick={() => handleSourceClick(sourceNumber, isWebCitation)}
+              className={`inline-flex items-center px-1.5 py-0.5 ml-0.5 mr-0.5 text-xs font-medium ${isWebCitation ? 'bg-blue-100 hover:bg-blue-200 dark:bg-blue-900 dark:hover:bg-blue-800 text-blue-800 dark:text-blue-200 border-blue-200 dark:border-blue-700' : 'bg-orange-100 hover:bg-orange-200 dark:bg-orange-900 dark:hover:bg-orange-800 text-orange-800 dark:text-orange-200 border-orange-200 dark:border-orange-700'} rounded transition-colors cursor-pointer border`}
+              title={`View ${isWebCitation ? 'web' : ''} source ${sourceNumber}`}
             >
-              {sourceNumber}
+              {isWebCitation ? <Link className="w-3 h-3" /> : sourceNumber}
             </button>
           ));
           parts.push(...citationButtons);
@@ -250,15 +264,15 @@ export const MarkdownRenderer: React.FC<MarkdownRendererProps> = React.memo(({
   // Pre-process markdown content to convert citations to HTML
   const preprocessMarkdownForCitations = (markdown: string): string => {
     // First, let's convert the markdown to handle individual citations
-    // This regex matches [^1], [^2], etc. individually
-    const singleCitationRegex = /\[\^(\d+|Current page)\]/g;
+    // This regex matches [^1], [^2], {^1}, {^2} etc. individually
+    const singleCitationRegex = /\[\^(\d+|Current page)\]|\{\^(\d+)\}/g;
     let citationGroupId = 0;
     
     // Process the text to group consecutive citations
     let processed = markdown;
     let result = '';
     let lastIndex = 0;
-    let consecutiveCitations: number[] = [];
+    let consecutiveCitations: { num: number; isWeb: boolean }[] = [];
     let isCollectingCitations = false;
     
     // Find all matches
@@ -267,7 +281,8 @@ export const MarkdownRenderer: React.FC<MarkdownRendererProps> = React.memo(({
     matches.forEach((match, index) => {
       const startPos = match.index!;
       const endPos = startPos + match[0].length;
-      const sourceNum = match[1];
+      const sourceNum = match[1] || match[2]; // match[1] for [^x], match[2] for {^x}
+      const isWebCitation = !!match[2]; // True if it's a {^x} pattern
       
       // Add text before this citation
       if (startPos > lastIndex) {
@@ -288,8 +303,8 @@ export const MarkdownRenderer: React.FC<MarkdownRendererProps> = React.memo(({
         }
         result += `<button class="inline-flex items-center px-1.5 py-0.5 ml-0.5 mr-0.5 text-xs font-medium bg-orange-100 hover:bg-orange-200 dark:bg-orange-900 dark:hover:bg-orange-800 text-orange-800 dark:text-orange-200 rounded transition-colors cursor-pointer border border-orange-200 dark:border-orange-700" title="Current Page">Current Page</button>`;
       } else {
-        // Collect numeric citations
-        consecutiveCitations.push(parseInt(sourceNum));
+        // Collect numeric citations with their type
+        consecutiveCitations.push({ num: parseInt(sourceNum), isWeb: isWebCitation });
       }
       
       lastIndex = endPos;
@@ -307,21 +322,35 @@ export const MarkdownRenderer: React.FC<MarkdownRendererProps> = React.memo(({
   };
   
   // Helper function to create citation buttons
-  const createCitationButtons = (sourceNumbers: number[], groupId: number): string => {
-    if (sourceNumbers.length <= 2) {
+  const createCitationButtons = (citations: { num: number; isWeb: boolean }[], groupId: number): string => {
+    if (citations.length <= 2) {
       // Show all buttons if 2 or fewer
-      return sourceNumbers.map(num => 
-        `<button class="inline-flex items-center px-1.5 py-0.5 ml-0.5 mr-0.5 text-xs font-medium bg-orange-100 hover:bg-orange-200 dark:bg-orange-900 dark:hover:bg-orange-800 text-orange-800 dark:text-orange-200 rounded transition-colors cursor-pointer border border-orange-200 dark:border-orange-700" title="View source ${num}" data-source="${num}">${num}</button>`
-      ).join('');
+      return citations.map(({ num, isWeb }) => {
+        const colorClasses = isWeb 
+          ? 'bg-blue-100 hover:bg-blue-200 dark:bg-blue-900 dark:hover:bg-blue-800 text-blue-800 dark:text-blue-200 border-blue-200 dark:border-blue-700'
+          : 'bg-orange-100 hover:bg-orange-200 dark:bg-orange-900 dark:hover:bg-orange-800 text-orange-800 dark:text-orange-200 border-orange-200 dark:border-orange-700';
+        const icon = isWeb ? '<svg class="w-3 h-3 inline" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path></svg>' : '';
+        const content = isWeb ? icon : num;
+        return `<button class="inline-flex items-center px-1.5 py-0.5 ml-0.5 mr-0.5 text-xs font-medium ${colorClasses} rounded transition-colors cursor-pointer border" title="View ${isWeb ? 'web' : ''} source ${num}" data-source="${num}" data-web="${isWeb}">${content}</button>`;
+      }).join('');
     } else {
       // Show first 2 + ellipsis + hidden ones
-      const visibleButtons = sourceNumbers.slice(0, 2).map(num => 
-        `<button class="inline-flex items-center px-1.5 py-0.5 ml-0.5 mr-0.5 text-xs font-medium bg-orange-100 hover:bg-orange-200 dark:bg-orange-900 dark:hover:bg-orange-800 text-orange-800 dark:text-orange-200 rounded transition-colors cursor-pointer border border-orange-200 dark:border-orange-700" title="View source ${num}" data-source="${num}">${num}</button>`
-      ).join('');
+      const visibleButtons = citations.slice(0, 2).map(({ num, isWeb }) => {
+        const colorClasses = isWeb 
+          ? 'bg-blue-100 hover:bg-blue-200 dark:bg-blue-900 dark:hover:bg-blue-800 text-blue-800 dark:text-blue-200 border-blue-200 dark:border-blue-700'
+          : 'bg-orange-100 hover:bg-orange-200 dark:bg-orange-900 dark:hover:bg-orange-800 text-orange-800 dark:text-orange-200 border-orange-200 dark:border-orange-700';
+        const icon = isWeb ? '<svg class="w-3 h-3 inline" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path></svg>' : '';
+        const content = isWeb ? icon : num;
+        return `<button class="inline-flex items-center px-1.5 py-0.5 ml-0.5 mr-0.5 text-xs font-medium ${colorClasses} rounded transition-colors cursor-pointer border" title="View ${isWeb ? 'web' : ''} source ${num}" data-source="${num}" data-web="${isWeb}">${content}</button>`;
+      }).join('');
       
-      const hiddenButtons = sourceNumbers.slice(2).map(num => 
-        `<button class="citation-hidden-${groupId} inline-flex items-center px-1.5 py-0.5 ml-0.5 mr-0.5 text-xs font-medium bg-orange-100 hover:bg-orange-200 dark:bg-orange-900 dark:hover:bg-orange-800 text-orange-800 dark:text-orange-200 rounded transition-colors cursor-pointer border border-orange-200 dark:border-orange-700" style="display: none;" title="View source ${num}" data-source="${num}">${num}</button>`
-      ).join('');
+      const hiddenButtons = citations.slice(2).map(({ num, isWeb }) => {
+        const colorClasses = isWeb 
+          ? 'bg-blue-100 hover:bg-blue-200 dark:bg-blue-900 dark:hover:bg-blue-800 text-blue-800 dark:text-blue-200 border-blue-200 dark:border-blue-700'
+          : 'bg-orange-100 hover:bg-orange-200 dark:bg-orange-900 dark:hover:bg-orange-800 text-orange-800 dark:text-orange-200 border-orange-200 dark:border-orange-700';
+        const icon = isWeb ? '<svg class="w-3 h-3 mr-0.5 inline" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path></svg>' : '';
+        return `<button class="citation-hidden-${groupId} inline-flex items-center px-1.5 py-0.5 ml-0.5 mr-0.5 text-xs font-medium ${colorClasses} rounded transition-colors cursor-pointer border" style="display: none;" title="View ${isWeb ? 'web' : ''} source ${num}" data-source="${num}" data-web="${isWeb}">${icon}${num}</button>`;
+      }).join('');
       
       const ellipsisButton = `<button class="citation-ellipsis-${groupId} inline-flex items-center px-1.5 py-0.5 ml-0.5 mr-0.5 text-xs font-medium bg-gray-100 hover:bg-gray-200 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 rounded transition-colors cursor-pointer border border-gray-300 dark:border-gray-600" data-citation-group="${groupId}">...</button>`;
       
@@ -350,9 +379,10 @@ export const MarkdownRenderer: React.FC<MarkdownRendererProps> = React.memo(({
   // Custom components for react-markdown
   const components = {
     // Handle button clicks for citations
-    button: (props: JSX.IntrinsicElements['button'] & { node?: unknown; 'data-source'?: string; 'data-citation-group'?: string; 'data-hidden-count'?: string; className?: string }) => {
+    button: (props: JSX.IntrinsicElements['button'] & { node?: unknown; 'data-source'?: string; 'data-web'?: string; 'data-citation-group'?: string; 'data-hidden-count'?: string; className?: string }) => {
       const { children, className, ...rest } = props;
       const dataSource = props['data-source'];
+      const isWebSource = props['data-web'] === 'true';
       const citationGroup = props['data-citation-group'];
       
       // Handle ellipsis button clicks
@@ -398,7 +428,7 @@ export const MarkdownRenderer: React.FC<MarkdownRendererProps> = React.memo(({
           <button
             {...rest}
             className={className}
-            onClick={() => handleSourceClick(parseInt(dataSource))}
+            onClick={() => handleSourceClick(parseInt(dataSource), isWebSource)}
           >
             {children}
           </button>
@@ -491,6 +521,12 @@ export const MarkdownRenderer: React.FC<MarkdownRendererProps> = React.memo(({
         onClose={closeModal}
         onOpenInFile={onOpenInFile}
         slides={slides}
+      />
+      
+      <WebSourceModal
+        source={selectedWebSource}
+        isOpen={isWebModalOpen}
+        onClose={closeWebModal}
       />
     </>
   );

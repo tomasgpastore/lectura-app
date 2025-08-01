@@ -1,9 +1,7 @@
 package staffbase.lectura.ai
 
 import jakarta.validation.Valid
-import org.springframework.http.MediaType
 import org.springframework.web.bind.annotation.*
-import org.springframework.web.servlet.mvc.method.annotation.SseEmitter
 import staffbase.lectura.auth.JwtService
 import staffbase.lectura.dto.ai.ChatFrontDTO
 import staffbase.lectura.dto.ai.ChatResponseDTO
@@ -28,7 +26,9 @@ class AiController(
             userId = userId,
             courseId = request.courseId,
             userPrompt = request.userPrompt,
-            snapshot = request.snapshot
+            slidePriority = request.slidePriority,
+            searchType = request.searchType,
+            snapshots = request.snapshots,
         )
     }
 }

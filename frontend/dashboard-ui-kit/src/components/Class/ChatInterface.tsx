@@ -254,7 +254,7 @@ const ChatInterfaceComponent: React.FC<ChatInterfaceProps> = ({
               Ready to help you learn
             </h3>
             <p className="text-gray-500 dark:text-gray-400 max-w-md mx-auto">
-              Upload your documents and start asking questions about your course materials.
+              Upload your documents and start asking questions about your class materials.
             </p>
           </div>
         ) : (

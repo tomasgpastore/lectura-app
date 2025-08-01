@@ -1,0 +1,596 @@
+{
+  "parameters": {
+    "course_id": "7f36bacc-3b9d-4c50-9d66-a52f98dd12a9",
+    "slides": [],
+    "chunks": [],
+    "prompt": "Peter Thiel key takeaways in the book",
+    "limit": 20
+  },
+  "results_count": 20,
+  "results": [
+    {
+      "id": "7f36bacc-3b9d-4c50-9d66-a52f98dd12a9:d2a9a46a-82e3-4d3c-9f11-7beed7c66aca:104",
+      "metadata": {
+        "courseId": "7f36bacc-3b9d-4c50-9d66-a52f98dd12a9",
+        "slideId": "d2a9a46a-82e3-4d3c-9f11-7beed7c66aca",
+        "chunkIndex": 104,
+        "rawText": "# E\nmust get right at the beginning. I stress this so often that friends have teasingly  \nnicknamed it \u201cThiel\u2019s law\u201d: .\n_a startup messed up at its foundation cannot be fixed_  \nBeginnings are special. They are qualitatively different from all that comes\nafterward. This was true 13.8 billion years ago, at the founding of our cosmos: in the  \n\u2014a\nearliest microseconds of its existence, the universe expanded by a factor of 10 [30]\nmillion trillion trillion. As cosmogonic epochs came and went in those first few\nmoments, the very laws of physics were different from those we know today.  \nIt was also true 227 years ago at the founding of our country: fundamental\nquestions were open for debate by the Framers during the few months they spent\ntogether at the Constitutional Convention. How much power should the central\ngovernment have? How should representation in Congress be apportioned? Whatever\nyour views on the compromises reached that summer in Philadelphia, they\u2019ve been\nhard to change ever since: after ratifying the Bill of Rights in 1791, we\u2019ve amended\nthe Constitution only 17 times. Today, California has the same representation in the\nSenate as Alaska, even though it has more than 50 times as many people. Maybe\nthat\u2019s a feature, not a bug. But we\u2019re probably stuck with it as long as the United\nStates exists. Another constitutional convention is unlikely; today we debate only\nsmaller questions.  \nCompanies are like countries in this way. Bad decisions made early on\u2014if you\nchoose the wrong partners or hire the wrong people, for example\u2014are very hard to\ncorrect after they are made. It may take a crisis on the order of bankruptcy before\nanybody will even try to correct them. As a founder, your first job is to get the first\nthings right, because you cannot build a great company on a flawed foundation.",
+        "wordCount": 308,
+        "charCount": 1825,
+        "splitLevel": "markdown",
+        "pageStart": 92,
+        "pageEnd": 93,
+        "headersHierarchy": [],
+        "headersHierarchyTitles": [],
+        "s3_path": "courses/7f36bacc-3b9d-4c50-9d66-a52f98dd12a9/slides/d2a9a46a-82e3-4d3c-9f11-7beed7c66aca.pdf",
+        "totalPages": 186,
+        "timestamp": 1753980852.101823,
+        "sentenceSiblingCount": 1,
+        "sentenceSiblingIndex": 0,
+        "updatedAt": 1753980890.723828,
+        "isHeader": true,
+        "headerLevel": 1,
+        "headerText": "E"
+      },
+      "score": 0.7708945870399475
+    },
+    {
+      "id": "7f36bacc-3b9d-4c50-9d66-a52f98dd12a9:d2a9a46a-82e3-4d3c-9f11-7beed7c66aca:203",
+      "metadata": {
+        "courseId": "7f36bacc-3b9d-4c50-9d66-a52f98dd12a9",
+        "slideId": "d2a9a46a-82e3-4d3c-9f11-7beed7c66aca",
+        "chunkIndex": 203,
+        "rawText": "### _About the Authors_  \n**Peter Thiel** is an entrepreneur and investor. He started PayPal in 1998, led it as CEO,\nand took it public in 2002, defining a new era of fast and secure online commerce. In\n2004 he made the first outside investment in Facebook, where he serves as a director.  \nThe same year he launched Palantir Technologies, a software company that\nharnesses computers to empower human analysts in fields like national security and\nglobal finance. He has provided early funding for LinkedIn, Yelp, and dozens of\nsuccessful technology startups, many run by former colleagues who have been\ndubbed the \u201cPayPal Mafia.\u201d He is a partner at Founders Fund, a Silicon Valley\nventure capital firm that has funded companies like SpaceX and Airbnb. He started\nthe Thiel Fellowship, which ignited a national debate by encouraging young people\nto put learning before schooling, and he leads the Thiel Foundation, which works to\nadvance technological progress and long-term thinking about the future.  \n**Blake Masters** was a student at Stanford Law School in 2012 when his detailed notes on  \nPeter\u2019s class \u201cComputer Science 183: Startup\u201d became an internet sensation. He\nwent on to co-found Judicata, a legal research technology startup.",
+        "wordCount": 198,
+        "charCount": 1240,
+        "splitLevel": "markdown",
+        "pageStart": 186,
+        "pageEnd": 186,
+        "headersHierarchy": [
+          190
+        ],
+        "headersHierarchyTitles": [
+          "H1^I"
+        ],
+        "s3_path": "courses/7f36bacc-3b9d-4c50-9d66-a52f98dd12a9/slides/d2a9a46a-82e3-4d3c-9f11-7beed7c66aca.pdf",
+        "totalPages": 186,
+        "timestamp": 1753980852.1054149,
+        "sentenceSiblingCount": 1,
+        "sentenceSiblingIndex": 0,
+        "updatedAt": 1753980890.72415,
+        "isHeader": true,
+        "headerLevel": 3,
+        "headerText": "_About the Authors_"
+      },
+      "score": 0.7675588130950928
+    },
+    {
+      "id": "7f36bacc-3b9d-4c50-9d66-a52f98dd12a9:d2a9a46a-82e3-4d3c-9f11-7beed7c66aca:0",
+      "metadata": {
+        "courseId": "7f36bacc-3b9d-4c50-9d66-a52f98dd12a9",
+        "slideId": "d2a9a46a-82e3-4d3c-9f11-7beed7c66aca",
+        "chunkIndex": 0,
+        "rawText": "Copyright \u00a9 2014 by Peter Thiel  \nAll rights reserved.\nPublished in the United States by Crown Business, an imprint of the Crown Publishing Group, a division of\nRandom House LLC, a Penguin Random House Company, New York.\n[www.crownpublishing.com](http://www.crownpublishing.com)  \nCROWN BUSINESS is a trademark and CROWN and the Rising Sun colophon are registered trademarks of  \nRandom House LLC.  \nCrown Business books are available at special discounts for bulk purchases for sales promotions or corporate use.\nSpecial editions, including personalized covers, excerpts of existing books, or books with corporate logos, can be\ncreated in large quantities for special needs. For more information, contact Premium Sales at (212) 572-2232 or e\nmail .\n[specialmarkets@randomhouse.com](mailto:specialmarkets@randomhouse.com)  \nLibrary of Congress Cataloging-in-Publication Data\nThiel, Peter A.  \nZero to one: notes on startups, or how to build the future / Peter Thiel with Blake Masters.  \npages  cm\n1. New business enterprises. 2. New products. 3. Entrepreneurship. 4. Diffusion of innovations. I. Title.  \nHD62.5.T525 2014  \n685.11\u2014dc23                         2014006653  \nHardcover ISBN: 978-0-8041-3929-8  \neBook ISBN: 978-0-8041-3930-4  \n_Book design by Ralph Fowler / rlfdesign_\n_Graphics by Rodrigo Corral Design_\n_Illustrations by Matt Buck_\n_Cover design by Michael Nagin_  \nAdditional credits appear on this page, which constitutes a continuation of this copyright page.",
+        "wordCount": 199,
+        "charCount": 1479,
+        "splitLevel": "markdown",
+        "pageStart": 1,
+        "pageEnd": 3,
+        "headersHierarchy": [],
+        "headersHierarchyTitles": [],
+        "s3_path": "courses/7f36bacc-3b9d-4c50-9d66-a52f98dd12a9/slides/d2a9a46a-82e3-4d3c-9f11-7beed7c66aca.pdf",
+        "totalPages": 186,
+        "timestamp": 1753980852.095943,
+        "sentenceSiblingCount": 1,
+        "sentenceSiblingIndex": 0,
+        "updatedAt": 1753980890.7234318,
+        "isHeader": false,
+        "headerLevel": null,
+        "headerText": null
+      },
+      "score": 0.7614355087280273
+    },
+    {
+      "id": "7f36bacc-3b9d-4c50-9d66-a52f98dd12a9:d2a9a46a-82e3-4d3c-9f11-7beed7c66aca:193",
+      "metadata": {
+        "courseId": "7f36bacc-3b9d-4c50-9d66-a52f98dd12a9",
+        "slideId": "d2a9a46a-82e3-4d3c-9f11-7beed7c66aca",
+        "chunkIndex": 193,
+        "rawText": "### _Acknowledgments_  \nJimmy Kaltreider for helping to think this book through.  \nRob Morrow, Scott Nolan, and Michael Solana for co-creating the Stanford class  \nfrom which we started.  \nChris Parris-Lamb, Tina Constable, David Drake, Talia Krohn, and Jeremiah Hall  \nfor skillfully guiding us to publication.  \nEveryone at Thiel Capital, Founders Fund, Mithril, and the Thiel Foundation for\nworking hard and smart.  \nOnward.",
+        "wordCount": 61,
+        "charCount": 427,
+        "splitLevel": "markdown",
+        "pageStart": 170,
+        "pageEnd": 171,
+        "headersHierarchy": [
+          190
+        ],
+        "headersHierarchyTitles": [
+          "H1^I"
+        ],
+        "s3_path": "courses/7f36bacc-3b9d-4c50-9d66-a52f98dd12a9/slides/d2a9a46a-82e3-4d3c-9f11-7beed7c66aca.pdf",
+        "totalPages": 186,
+        "timestamp": 1753980852.105216,
+        "sentenceSiblingCount": 1,
+        "sentenceSiblingIndex": 0,
+        "updatedAt": 1753980890.7241201,
+        "isHeader": true,
+        "headerLevel": 3,
+        "headerText": "_Acknowledgments_"
+      },
+      "score": 0.7608171701431274
+    },
+    {
+      "id": "7f36bacc-3b9d-4c50-9d66-a52f98dd12a9:d2a9a46a-82e3-4d3c-9f11-7beed7c66aca:5",
+      "metadata": {
+        "courseId": "7f36bacc-3b9d-4c50-9d66-a52f98dd12a9",
+        "slideId": "d2a9a46a-82e3-4d3c-9f11-7beed7c66aca",
+        "chunkIndex": 5,
+        "rawText": "_Zero to One_ is about how to build companies that create new things. It draws on\neverything I\u2019ve learned directly as a co-founder of PayPal and Palantir and then an\ninvestor in hundreds of startups, including Facebook and SpaceX. But while I have\nnoticed many patterns, and I relate them here, this book offers no formula for\nsuccess. The paradox of teaching entrepreneurship is that such a formula necessarily\ncannot exist; because every innovation is new and unique, no authority can prescribe\nin concrete terms how to be innovative. Indeed, the single most powerful pattern I\nhave noticed is that successful people find value in unexpected places, and they do\nthis by thinking about business from first principles instead of formulas.  \nThis book stems from a course about startups that I taught at Stanford in 2012.\nCollege students can become extremely skilled at a few specialties, but many never\nlearn what to do with those skills in the wider world. My primary goal in teaching\nthe class was to help my students see beyond the tracks laid down by academic\nspecialties to the broader future that is theirs to create. One of those students, Blake\nMasters, took detailed class notes, which circulated far beyond the campus, and in  \n_Zero to One_ I have worked with him to revise the notes for a wider audience. There\u2019s  \nno reason why the future should happen only at Stanford, or in college, or in Silicon\nValley.",
+        "wordCount": 242,
+        "charCount": 1421,
+        "splitLevel": "recursive",
+        "pageStart": 6,
+        "pageEnd": 7,
+        "headersHierarchy": [
+          4
+        ],
+        "headersHierarchyTitles": [
+          "H1^E"
+        ],
+        "s3_path": "courses/7f36bacc-3b9d-4c50-9d66-a52f98dd12a9/slides/d2a9a46a-82e3-4d3c-9f11-7beed7c66aca.pdf",
+        "totalPages": 186,
+        "timestamp": 1753980852.1056771,
+        "sentenceSiblingCount": 2,
+        "sentenceSiblingIndex": 1,
+        "updatedAt": 1753980890.7234719,
+        "isHeader": false,
+        "headerLevel": null,
+        "headerText": null
+      },
+      "score": 0.7507413029670715
+    },
+    {
+      "id": "7f36bacc-3b9d-4c50-9d66-a52f98dd12a9:d2a9a46a-82e3-4d3c-9f11-7beed7c66aca:188",
+      "metadata": {
+        "courseId": "7f36bacc-3b9d-4c50-9d66-a52f98dd12a9",
+        "slideId": "d2a9a46a-82e3-4d3c-9f11-7beed7c66aca",
+        "chunkIndex": 188,
+        "rawText": "This\nhints at the strange way in which the companies that create new technology often\nresemble feudal monarchies rather than organizations that are supposedly more\n\u201cmodern.\u201d A unique founder can make authoritative decisions, inspire strong\npersonal loyalty, and plan ahead for decades. Paradoxically, impersonal\nbureaucracies staffed by trained professionals can last longer than any lifetime, but\nthey usually act with short time horizons.  \nThe lesson for business is that we need founders. If anything, we should be more\ntolerant of founders who seem strange or extreme; we need unusual individuals to\nlead companies beyond mere incrementalism.  \nThe lesson for founders is that individual prominence and adulation can never be\nenjoyed except on the condition that it may be exchanged for individual notoriety\nand demonization at any moment\u2014so be careful.  \nAbove all, don\u2019t overestimate your own power as an individual. Founders are\nimportant not because they are the only ones whose work has value, but rather\nbecause a great founder can bring out the best work from everybody at his company.\nThat we need individual founders in all their peculiarity does not mean that we are\ncalled to worship Ayn Randian \u201cprime movers\u201d who claim to be independent of\neverybody around them. In this respect Rand was a merely half-great writer: her\nvillains were real, but her heroes were fake. There is no Galt\u2019s Gulch. There is no  \nsecession from society. To believe yourself invested with divine self-sufficiency is not\nthe mark of a strong individual, but of a person who has mistaken the crowd\u2019s\nworship\u2014or jeering\u2014for the truth. The single greatest danger for a founder is to\nbecome so certain of his own myth that he loses his mind. But an equally insidious\ndanger for every business is to lose all sense of myth and mistake disenchantment for  \nwisdom.",
+        "wordCount": 299,
+        "charCount": 1850,
+        "splitLevel": "recursive",
+        "pageStart": 166,
+        "pageEnd": 166,
+        "headersHierarchy": [
+          178,
+          187
+        ],
+        "headersHierarchyTitles": [
+          "H1^O",
+          "H3^THE RETURN OF THE KING"
+        ],
+        "s3_path": "courses/7f36bacc-3b9d-4c50-9d66-a52f98dd12a9/slides/d2a9a46a-82e3-4d3c-9f11-7beed7c66aca.pdf",
+        "totalPages": 186,
+        "timestamp": 1753980852.114177,
+        "sentenceSiblingCount": 2,
+        "sentenceSiblingIndex": 1,
+        "updatedAt": 1753980890.724106,
+        "isHeader": false,
+        "headerLevel": null,
+        "headerText": null
+      },
+      "score": 0.7500419616699219
+    },
+    {
+      "id": "7f36bacc-3b9d-4c50-9d66-a52f98dd12a9:d2a9a46a-82e3-4d3c-9f11-7beed7c66aca:89",
+      "metadata": {
+        "courseId": "7f36bacc-3b9d-4c50-9d66-a52f98dd12a9",
+        "slideId": "d2a9a46a-82e3-4d3c-9f11-7beed7c66aca",
+        "chunkIndex": 89,
+        "rawText": "Every university believes in \u201cexcellence,\u201d and hundredpage course catalogs arranged alphabetically according to arbitrary departments of\nknowledge seem designed to reassure you that \u201cit doesn\u2019t matter what you do, as\nlong as you do it well.\u201d That is completely false. It does matter what you do. You\nshould focus relentlessly on something you\u2019re good at doing, but before that you  \nmust think hard about whether it will be valuable in the future.  \nFor the startup world, this means you should not necessarily start your own\ncompany, even if you are extraordinarily talented. If anything, too many people are  \nstarting their own companies today. People who understand the power law will\nhesitate more than others when it comes to founding a new venture: they know how\ntremendously successful they could become by joining the very best company while\nit\u2019s growing fast. The power law means that differences _between_ companies will\ndwarf the differences in roles _inside_ companies. You could have 100% of the equity\nif you fully fund your own venture, but if it fails you\u2019ll have 100% of nothing.\nOwning just 0.01% of Google, by contrast, is incredibly valuable (more than $35\nmillion as of this writing).  \nIf you do start your own company, you must remember the power law to operate\nit well. The most important things are singular: One market will probably be better\nthan all others, as we discussed in Chapter 5. One distribution strategy usually\ndominates all others, too\u2014for that see Chapter 11. Time and decision-making\nthemselves follow a power law, and some moments matter far more than others\u2014  \nsee\nChapter 9. However, you can\u2019t trust a world that denies the power law to\naccurately frame your decisions for you, so what\u2019s most important is rarely obvious.\nIt might even be secret. But in a power law world, you can\u2019t afford not to think hard\nabout where your actions will fall on the curve.",
+        "wordCount": 318,
+        "charCount": 1902,
+        "splitLevel": "recursive",
+        "pageStart": 77,
+        "pageEnd": 79,
+        "headersHierarchy": [
+          81,
+          88
+        ],
+        "headersHierarchyTitles": [
+          "H1^M",
+          "H3^WHAT TO DO WITH THE POWER LAW"
+        ],
+        "s3_path": "courses/7f36bacc-3b9d-4c50-9d66-a52f98dd12a9/slides/d2a9a46a-82e3-4d3c-9f11-7beed7c66aca.pdf",
+        "totalPages": 186,
+        "timestamp": 1753980852.1105611,
+        "sentenceSiblingCount": 2,
+        "sentenceSiblingIndex": 1,
+        "updatedAt": 1753980890.7237709,
+        "isHeader": false,
+        "headerLevel": null,
+        "headerText": null
+      },
+      "score": 0.7466913461685181
+    },
+    {
+      "id": "7f36bacc-3b9d-4c50-9d66-a52f98dd12a9:d2a9a46a-82e3-4d3c-9f11-7beed7c66aca:91",
+      "metadata": {
+        "courseId": "7f36bacc-3b9d-4c50-9d66-a52f98dd12a9",
+        "slideId": "d2a9a46a-82e3-4d3c-9f11-7beed7c66aca",
+        "chunkIndex": 91,
+        "rawText": "# E  \nunsuspected. The mathematical relationship between a triangle\u2019s sides, for\nexample, was secret for millennia. Pythagoras had to think hard to discover it. If you\nwanted in on Pythagoras\u2019s new discovery, joining his strange vegetarian cult was the\nbest way to learn about it. Today, his geometry has become a convention\u2014a simple\ntruth we teach to grade schoolers. A conventional truth can be important\u2014it\u2019s\nessential to learn elementary mathematics, for example\u2014but it won\u2019t give you an\nedge. It\u2019s not a secret.  \nRemember our contrarian question: _what important truth do very few people agree_\n_with you on?_ If we already understand as much of the natural world as we ever will\n\u2014if all of today\u2019s conventional ideas are already enlightened, and if everything has\nalready been done\u2014then there are no good answers. Contrarian thinking doesn\u2019t\nmake any sense unless the world still has secrets left to give up.  \nOf course, there are many things we don\u2019t yet understand, but some of those\nthings may be impossible to figure out\u2014mysteries rather than secrets. For example,\nstring theory describes the physics of the universe in terms of vibrating onedimensional objects called \u201cstrings.\u201d Is string theory true? You can\u2019t really design\nexperiments to test it. Very few people, if any, could ever understand all its\nimplications. But is that just because it\u2019s difficult? Or is it an impossible mystery?\nThe difference matters. You can achieve difficult things, but you can\u2019t achieve the\nimpossible.  \nRecall the business version of our contrarian question: _what valuable company is_\n_nobody building?_ Every correct answer is necessarily a secret: something important\nand unknown, something hard to do but doable. If there are many secrets left in the  \nworld, there are probably many world-changing companies yet to be started. This\nchapter will help you think about secrets and how to find them.",
+        "wordCount": 303,
+        "charCount": 1900,
+        "splitLevel": "markdown",
+        "pageStart": 79,
+        "pageEnd": 81,
+        "headersHierarchy": [],
+        "headersHierarchyTitles": [],
+        "s3_path": "courses/7f36bacc-3b9d-4c50-9d66-a52f98dd12a9/slides/d2a9a46a-82e3-4d3c-9f11-7beed7c66aca.pdf",
+        "totalPages": 186,
+        "timestamp": 1753980852.101295,
+        "sentenceSiblingCount": 1,
+        "sentenceSiblingIndex": 0,
+        "updatedAt": 1753980890.7237802,
+        "isHeader": true,
+        "headerLevel": 1,
+        "headerText": "E"
+      },
+      "score": 0.7450929880142212
+    },
+    {
+      "id": "7f36bacc-3b9d-4c50-9d66-a52f98dd12a9:d2a9a46a-82e3-4d3c-9f11-7beed7c66aca:21",
+      "metadata": {
+        "courseId": "7f36bacc-3b9d-4c50-9d66-a52f98dd12a9",
+        "slideId": "d2a9a46a-82e3-4d3c-9f11-7beed7c66aca",
+        "chunkIndex": 21,
+        "rawText": "Focus on product, not sales  \nIf your product requires advertising or salespeople to sell it, it\u2019s not good\nenough: technology is primarily about product development, not distribution.\nBubble-era advertising was obviously wasteful, so the only sustainable growth\nis viral growth.  \nThese lessons have become dogma in the startup world; those who would ignore\nthem are presumed to invite the justified doom visited upon technology in the great\ncrash of 2000. And yet the opposite principles are probably more correct:  \n_1. It is better to risk boldness than triviality._  \n_2. A bad plan is better than no plan._  \n_3. Competitive markets destroy profits._  \n_4. Sales matters just as much as product._  \nIt\u2019s true that there was a bubble in technology. The late \u201990s was a time of hubris:\npeople believed in going from 0 to 1. Too few startups were actually getting there,\nand many never went beyond talking about it. But people understood that we had no\nchoice but to find ways to do more with less. The market high of March 2000 was\nobviously a peak of insanity; less obvious but more important, it was also a peak of\nclarity. People looked far into the future, saw how much valuable new technology\nwe would need to get there safely, and judged themselves capable of creating it.  \nWe still need new technology, and we may even need some 1999-style hubris and\nexuberance to get it. To build the next generation of companies, we must abandon\nthe dogmas created after the crash. That doesn\u2019t mean the opposite ideas are\nautomatically true: you can\u2019t escape the madness of crowds by dogmatically rejecting\nthem. Instead ask yourself: how much of what you know about business is shaped by  \nmistaken reactions to past mistakes? The most contrarian thing of all is not to oppose\nthe crowd but to think for yourself.",
+        "wordCount": 307,
+        "charCount": 1813,
+        "splitLevel": "recursive",
+        "pageStart": 20,
+        "pageEnd": 22,
+        "headersHierarchy": [
+          13,
+          20
+        ],
+        "headersHierarchyTitles": [
+          "H1^O",
+          "H3^LESSONS LEARNED"
+        ],
+        "s3_path": "courses/7f36bacc-3b9d-4c50-9d66-a52f98dd12a9/slides/d2a9a46a-82e3-4d3c-9f11-7beed7c66aca.pdf",
+        "totalPages": 186,
+        "timestamp": 1753980852.1062531,
+        "sentenceSiblingCount": 2,
+        "sentenceSiblingIndex": 1,
+        "updatedAt": 1753980890.7235358,
+        "isHeader": false,
+        "headerLevel": null,
+        "headerText": null
+      },
+      "score": 0.7450153827667236
+    },
+    {
+      "id": "7f36bacc-3b9d-4c50-9d66-a52f98dd12a9:d2a9a46a-82e3-4d3c-9f11-7beed7c66aca:2",
+      "metadata": {
+        "courseId": "7f36bacc-3b9d-4c50-9d66-a52f98dd12a9",
+        "slideId": "d2a9a46a-82e3-4d3c-9f11-7beed7c66aca",
+        "chunkIndex": 2,
+        "rawText": "### _Contents_  \n_Preface:_ Zero to One  \n1  The Challenge of the Future  \n2  Party Like It\u2019s 1999  \n3  All Happy Companies Are Different  \n4  The Ideology of Competition  \n5  Last Mover Advantage  \n6  You Are Not a Lottery Ticket  \n7  Follow the Money  \n8  Secrets  \n9  Foundations  \n10  The Mechanics of Mafia  \n11  If You Build It, Will They Come?  \n12  Man and Machine  \n13  Seeing Green  \n14  The Founder\u2019s Paradox  \n_Conclusion:_ Stagnation or Singularity?  \n_Acknowledgments_  \n_Illustration Credits_  \n_Index_  \n_About the Authors_",
+        "wordCount": 82,
+        "charCount": 539,
+        "splitLevel": "markdown",
+        "pageStart": 3,
+        "pageEnd": 4,
+        "headersHierarchy": [],
+        "headersHierarchyTitles": [],
+        "s3_path": "courses/7f36bacc-3b9d-4c50-9d66-a52f98dd12a9/slides/d2a9a46a-82e3-4d3c-9f11-7beed7c66aca.pdf",
+        "totalPages": 186,
+        "timestamp": 1753980852.096174,
+        "sentenceSiblingCount": 1,
+        "sentenceSiblingIndex": 0,
+        "updatedAt": 1753980890.723456,
+        "isHeader": true,
+        "headerLevel": 3,
+        "headerText": "_Contents_"
+      },
+      "score": 0.7441326975822449
+    },
+    {
+      "id": "7f36bacc-3b9d-4c50-9d66-a52f98dd12a9:d2a9a46a-82e3-4d3c-9f11-7beed7c66aca:4",
+      "metadata": {
+        "courseId": "7f36bacc-3b9d-4c50-9d66-a52f98dd12a9",
+        "slideId": "d2a9a46a-82e3-4d3c-9f11-7beed7c66aca",
+        "chunkIndex": 4,
+        "rawText": "# E\nan operating system. The next Larry Page or Sergey Brin won\u2019t make a search\nengine. And the next Mark Zuckerberg won\u2019t create a social network. If you are\ncopying these guys, you aren\u2019t learning from them.  \nOf course, it\u2019s easier to copy a model than to make something new. Doing what we\nalready know how to do takes the world from 1 to _n,_ adding more of something\nfamiliar. But every time we create something new, we go from 0 to 1. The act of\ncreation is singular, as is the moment of creation, and the result is something fresh\nand strange.  \nUnless they invest in the difficult task of creating new things, American\ncompanies will fail in the future no matter how big their profits remain today. What\nhappens when we\u2019ve gained everything to be had from fine-tuning the old lines of\nbusiness that we\u2019ve inherited? Unlikely as it sounds, the answer threatens to be far\nworse than the crisis of 2008. Today\u2019s \u201cbest practices\u201d lead to dead ends; the best\npaths are new and untried.  \nIn a world of gigantic administrative bureaucracies both public and private,\nsearching for a new path might seem like hoping for a miracle. Actually, if American\nbusiness is going to succeed, we are going to need hundreds, or even thousands, of\nmiracles. This would be depressing but for one crucial fact: humans are distinguished\nfrom other species by our ability to work miracles. We call these miracles _technology._  \nTechnology is miraculous because it allows us to do _more with less,_ ratcheting up\nour fundamental capabilities to a higher level. Other animals are instinctively driven\nto build things like dams or honeycombs, but we are the only ones that can invent\nnew things and better ways of making them. Humans don\u2019t decide what to build by\nmaking choices from some cosmic catalog of options given in advance; instead, by\ncreating new technologies, we rewrite the plan of the world. These are the kind of\nelementary truths we teach to second graders, but they are easy to forget in a world\nwhere so much of what we do is repeat what has been done before.",
+        "wordCount": 362,
+        "charCount": 2059,
+        "splitLevel": "recursive",
+        "pageStart": 5,
+        "pageEnd": 5,
+        "headersHierarchy": [],
+        "headersHierarchyTitles": [],
+        "s3_path": "courses/7f36bacc-3b9d-4c50-9d66-a52f98dd12a9/slides/d2a9a46a-82e3-4d3c-9f11-7beed7c66aca.pdf",
+        "totalPages": 186,
+        "timestamp": 1753980852.105639,
+        "sentenceSiblingCount": 2,
+        "sentenceSiblingIndex": 0,
+        "updatedAt": 1753980890.723468,
+        "isHeader": true,
+        "headerLevel": 1,
+        "headerText": "E"
+      },
+      "score": 0.7432966232299805
+    },
+    {
+      "id": "7f36bacc-3b9d-4c50-9d66-a52f98dd12a9:d2a9a46a-82e3-4d3c-9f11-7beed7c66aca:76",
+      "metadata": {
+        "courseId": "7f36bacc-3b9d-4c50-9d66-a52f98dd12a9",
+        "slideId": "d2a9a46a-82e3-4d3c-9f11-7beed7c66aca",
+        "chunkIndex": 76,
+        "rawText": "Would-be entrepreneurs are told that nothing can be known in\nadvance: we\u2019re supposed to listen to what customers say they want, make nothing\nmore than a \u201cminimum viable product,\u201d and iterate our way to success.  \nBut leanness is a methodology, not a goal. Making small changes to things that\nalready exist might lead you to a local maximum, but it won\u2019t help you find the\nglobal maximum. You could build the best version of an app that lets people order\ntoilet paper from their iPhone. But iteration without a bold plan won\u2019t take you from\n0 to 1. A company is the strangest place of all for an indefinite optimist: why should\nyou expect your own business to succeed without a plan to make it happen?\nDarwinism may be a fine theory in other contexts, but in startups, intelligent design  \nworks best.",
+        "wordCount": 142,
+        "charCount": 800,
+        "splitLevel": "recursive",
+        "pageStart": 64,
+        "pageEnd": 65,
+        "headersHierarchy": [
+          60,
+          75
+        ],
+        "headersHierarchyTitles": [
+          "H1^T",
+          "H3^IS INDEFINITE OPTIMISM EVEN POSSIBLE?"
+        ],
+        "s3_path": "courses/7f36bacc-3b9d-4c50-9d66-a52f98dd12a9/slides/d2a9a46a-82e3-4d3c-9f11-7beed7c66aca.pdf",
+        "totalPages": 186,
+        "timestamp": 1753980852.109605,
+        "sentenceSiblingCount": 2,
+        "sentenceSiblingIndex": 1,
+        "updatedAt": 1753980890.723733,
+        "isHeader": false,
+        "headerLevel": null,
+        "headerText": null
+      },
+      "score": 0.742110550403595
+    },
+    {
+      "id": "7f36bacc-3b9d-4c50-9d66-a52f98dd12a9:d2a9a46a-82e3-4d3c-9f11-7beed7c66aca:82",
+      "metadata": {
+        "courseId": "7f36bacc-3b9d-4c50-9d66-a52f98dd12a9",
+        "slideId": "d2a9a46a-82e3-4d3c-9f11-7beed7c66aca",
+        "chunkIndex": 82,
+        "rawText": "This chapter shows how the power law becomes visible when you follow the\nmoney: in venture capital, where investors try to profit from exponential growth in\nearly-stage companies, a few companies attain exponentially greater value than all\nothers. Most businesses never need to deal with venture capital, but everyone needs\nto know exactly one thing that even venture capitalists struggle to understand: we  \ndon\u2019t live in a normal world; we live under a power law.",
+        "wordCount": 75,
+        "charCount": 465,
+        "splitLevel": "recursive",
+        "pageStart": 68,
+        "pageEnd": 70,
+        "headersHierarchy": [
+          81
+        ],
+        "headersHierarchyTitles": [
+          "H1^M"
+        ],
+        "s3_path": "courses/7f36bacc-3b9d-4c50-9d66-a52f98dd12a9/slides/d2a9a46a-82e3-4d3c-9f11-7beed7c66aca.pdf",
+        "totalPages": 186,
+        "timestamp": 1753980852.109797,
+        "sentenceSiblingCount": 2,
+        "sentenceSiblingIndex": 1,
+        "updatedAt": 1753980890.723752,
+        "isHeader": false,
+        "headerLevel": null,
+        "headerText": null
+      },
+      "score": 0.7419137358665466
+    },
+    {
+      "id": "7f36bacc-3b9d-4c50-9d66-a52f98dd12a9:d2a9a46a-82e3-4d3c-9f11-7beed7c66aca:20",
+      "metadata": {
+        "courseId": "7f36bacc-3b9d-4c50-9d66-a52f98dd12a9",
+        "slideId": "d2a9a46a-82e3-4d3c-9f11-7beed7c66aca",
+        "chunkIndex": 20,
+        "rawText": "### LESSONS LEARNED  \n_\u2019Cause they say 2,000 zero zero party over, oops! Out of time!_  \n_So tonight I\u2019m gonna party like it\u2019s 1999!_  \n\u2014P RINCE  \nThe NASDAQ reached 5,048 at its peak in the middle of March 2000 and then\ncrashed to 3,321 in the middle of April. By the time it bottomed out at 1,114 in\nOctober 2002, the country had long since interpreted the market\u2019s collapse as a kind\nof divine judgment against the technological optimism of the \u201990s. The era of\ncornucopian hope was relabeled as an era of crazed greed and declared to be\ndefinitely over.  \nEveryone learned to treat the future as fundamentally indefinite, and to dismiss as\nan extremist anyone with plans big enough to be measured in years instead of\nquarters. Globalization replaced technology as the hope for the future. Since the \u201990s\nmigration \u201cfrom bricks to clicks\u201d didn\u2019t work as hoped, investors went back to bricks\n(housing) and BRICs (globalization). The result was another bubble, this time in real  \nestate.  \nThe entrepreneurs who stuck with Silicon Valley learned four big lessons from the\ndot-com crash that still guide business thinking today:  \n1. Make incremental advances  \nGrand visions inflated the bubble, so they should not be indulged. Anyone who\nclaims to be able to do something great is suspect, and anyone who wants to\nchange the world should be more humble. Small, incremental steps are the only\nsafe path forward.  \n2. Stay lean and flexible  \nAll companies must be \u201clean,\u201d which is code for \u201cunplanned.\u201d You should not\nknow what your business will do; planning is arrogant and inflexible. Instead\nyou should try things out, \u201citerate,\u201d and treat entrepreneurship as agnostic  \nexperimentation.  \n3. Improve on the competition  \nDon\u2019t try to create a new market prematurely. The only way to know you have\na real business is to start with an already existing customer, so you should build\nyour company by improving on recognizable products already offered by\nsuccessful competitors.  \n4.",
+        "wordCount": 327,
+        "charCount": 1985,
+        "splitLevel": "recursive",
+        "pageStart": 18,
+        "pageEnd": 20,
+        "headersHierarchy": [
+          13
+        ],
+        "headersHierarchyTitles": [
+          "H1^O"
+        ],
+        "s3_path": "courses/7f36bacc-3b9d-4c50-9d66-a52f98dd12a9/slides/d2a9a46a-82e3-4d3c-9f11-7beed7c66aca.pdf",
+        "totalPages": 186,
+        "timestamp": 1753980852.106213,
+        "sentenceSiblingCount": 2,
+        "sentenceSiblingIndex": 0,
+        "updatedAt": 1753980890.7235332,
+        "isHeader": true,
+        "headerLevel": 3,
+        "headerText": "LESSONS LEARNED"
+      },
+      "score": 0.7409594655036926
+    },
+    {
+      "id": "7f36bacc-3b9d-4c50-9d66-a52f98dd12a9:d2a9a46a-82e3-4d3c-9f11-7beed7c66aca:81",
+      "metadata": {
+        "courseId": "7f36bacc-3b9d-4c50-9d66-a52f98dd12a9",
+        "slideId": "d2a9a46a-82e3-4d3c-9f11-7beed7c66aca",
+        "chunkIndex": 81,
+        "rawText": "# M\nan abundance. Whoever does not have, even what they have will be taken\nfrom them\u201d (Matthew 25:29). Albert Einstein made the same observation when he\nstated that compound interest was \u201cthe eighth wonder of the world,\u201d \u201cthe greatest\nmathematical discovery of all time,\u201d or even \u201cthe most powerful force in the\nuniverse.\u201d Whichever version you prefer, you can\u2019t miss his message: never\nunderestimate exponential growth. Actually, there\u2019s no evidence that Einstein ever\nsaid any of those things\u2014the quotations are all apocryphal. But this very\nmisattribution reinforces the message: having invested the principal of a lifetime\u2019s\nbrilliance, Einstein continues to earn interest on it from beyond the grave by\nreceiving credit for things he never said.  \nMost sayings are forgotten. At the other extreme, a select few people like Einstein\nand Shakespeare are constantly quoted and ventriloquized. We shouldn\u2019t be\nsurprised, since small minorities often achieve disproportionate results. In 1906,\neconomist Vilfredo Pareto discovered what became the \u201cPareto principle,\u201d or the 8020 rule, when he noticed that 20% of the people owned 80% of the land in Italy\u2014a\nphenomenon that he found just as natural as the fact that 20% of the peapods in his\ngarden produced 80% of the peas. This extraordinarily stark pattern, in which a\nsmall few radically outstrip all rivals, surrounds us everywhere in the natural and\nsocial world. The most destructive earthquakes are many times more powerful than\nall smaller earthquakes combined. The biggest cities dwarf all mere towns put\ntogether. And monopoly businesses capture more value than millions of\nundifferentiated competitors. Whatever Einstein did or didn\u2019t say, the power law\u2014\nso named because exponential equations describe severely unequal distributions\u2014is\nthe law of the universe. It defines our surroundings so completely that we usually  \ndon\u2019t even see it.",
+        "wordCount": 294,
+        "charCount": 1901,
+        "splitLevel": "recursive",
+        "pageStart": 68,
+        "pageEnd": 68,
+        "headersHierarchy": [],
+        "headersHierarchyTitles": [],
+        "s3_path": "courses/7f36bacc-3b9d-4c50-9d66-a52f98dd12a9/slides/d2a9a46a-82e3-4d3c-9f11-7beed7c66aca.pdf",
+        "totalPages": 186,
+        "timestamp": 1753980852.109771,
+        "sentenceSiblingCount": 2,
+        "sentenceSiblingIndex": 0,
+        "updatedAt": 1753980890.7237492,
+        "isHeader": true,
+        "headerLevel": 1,
+        "headerText": "M"
+      },
+      "score": 0.7406691312789917
+    },
+    {
+      "id": "7f36bacc-3b9d-4c50-9d66-a52f98dd12a9:d2a9a46a-82e3-4d3c-9f11-7beed7c66aca:199",
+      "metadata": {
+        "courseId": "7f36bacc-3b9d-4c50-9d66-a52f98dd12a9",
+        "slideId": "d2a9a46a-82e3-4d3c-9f11-7beed7c66aca",
+        "chunkIndex": 199,
+        "rawText": "Kaczynski, Ted\nKarim, Jawed  \nKarp, Alex, 11.1, 12.1\nKasparov, Garry\nKatrina, Hurricane  \nKennedy, Anthony\nKesey, Ken\nKessler, Andy\nKurzweil, Ray  \nlast mover, 11.1, 13.1  \nlast mover advantage\nlean startup, 2.1, 6.1, 6.2\nLevchin, Max, 4.1, 10.1, 12.1, 14.1  \nLevie, Aaron  \nlifespan  \nlife tables  \nLinkedIn, 5.1, 10.1, 12.1  \nLoiseau, Bernard\nLong-Term Capital Management (LTCM)\n_Lord of the Rings_ (Tolkien)\nluck, 6.1, 6.2, 6.3, 6.4  \nLucretius  \nLyft  \nMacBook  \nmachine learning\nMadison, James  \nMadrigal, Alexis\nManhattan Project  \nManson, Charles  \nmanufacturing\nmarginal cost\nmarketing\nMarx, Karl, 4.1, 6.1, 6.2, 6.3  \nMasters, Blake, prf.1, 11.1\nMayer, Marissa  \nMedicare  \nMercedes-Benz  \nMiaSol\u00e9, 13.1, 13.2  \nMichelin  \nMicrosoft, 3.1, 3.2, 3.3, 4.1, 5.1, 14.1  \nmobile computing  \nmobile credit card readers  \nMogadishu\nmonopoly, monopolies, 3.1, 3.2, 3.3, 5.1, 7.1, 8.1  \nbuilding of  \ncharacteristics of  \nin cleantech  \ncreative  \ndynamism of new  \nlies of  \nprofits of\nprogress and  \nsales and  \nof Tesla  \nMorrison, Jim  \nMosaic browser  \nmusic recording industry\nMusk, Elon, 4.1, 6.1, 11.1, _13.1_, 13.2, 13.3  \nNapster, 5.1, 14.1\nNASA, 6.1, 11.1  \nNASDAQ, 2.1, 13.1\nNational Security Agency (NSA)\nnatural gas  \nnatural secrets  \nNavigator browser  \nNetflix  \nNetscape  \nNetSecure  \nnetwork effects, 5.1, 5.2  \nNew Economy, 2.1, 2.2\n_New York Times_, 13.1, 14.1  \nNew York Times  \nNietzsche, Friedrich  \nNokia  \nnonprofits, 13.1, 13.2\nNosek, Luke, 9.1, 14.1  \nNozick, Robert  \nnutrition  \nOedipus, 14.1, 14.2  \nOfficeJet  \nOmniBook  \nonline pet store market  \nOracle  \n_Outliers_ (Gladwell)\nownership  \nPackard, Dave  \nPage, Larry\nPalantir, prf.1, 7.1, 10.1, 11.1, 12.1\nPalmPilots, 2.1, 5.1, 11.1  \nPan, Yu  \nPanama Canal  \nPareto, Vilfredo  \nPareto principle\nParker, Sean, 5.1, 14.1  \nPart-time employees  \npatents\npath dependence\nPayPal, prf.1, 2.1, 3.1, 4.1, 4.2, 4.3, 5.1, 5.2, 5.3, 8.1, 9.1, 9.2, 10.1, 10.2, 10.3, 10.4, 11.1, 11.2, 12.1, 12.2, 14.1  \nfounders of, _14.1_  \nfuture cash flows of  \ninvestors in  \n\u201cPayPal Mafia\u201d  \nPCs  \nPearce,",
+        "wordCount": 285,
+        "charCount": 2066,
+        "splitLevel": "recursive",
+        "pageStart": 179,
+        "pageEnd": 181,
+        "headersHierarchy": [
+          190,
+          195
+        ],
+        "headersHierarchyTitles": [
+          "H1^I",
+          "H3^_Index_"
+        ],
+        "s3_path": "courses/7f36bacc-3b9d-4c50-9d66-a52f98dd12a9/slides/d2a9a46a-82e3-4d3c-9f11-7beed7c66aca.pdf",
+        "totalPages": 186,
+        "timestamp": 1753980852.1151931,
+        "sentenceSiblingCount": 8,
+        "sentenceSiblingIndex": 4,
+        "updatedAt": 1753980890.72414,
+        "isHeader": false,
+        "headerLevel": null,
+        "headerText": null
+      },
+      "score": 0.738782525062561
+    },
+    {
+      "id": "7f36bacc-3b9d-4c50-9d66-a52f98dd12a9:d2a9a46a-82e3-4d3c-9f11-7beed7c66aca:98",
+      "metadata": {
+        "courseId": "7f36bacc-3b9d-4c50-9d66-a52f98dd12a9",
+        "slideId": "d2a9a46a-82e3-4d3c-9f11-7beed7c66aca",
+        "chunkIndex": 98,
+        "rawText": "### THE CASE FOR SECRETS  \nYou can\u2019t find secrets without looking for them. Andrew Wiles demonstrated this\nwhen he proved Fermat\u2019s Last Theorem after 358 years of fruitless inquiry by other\nmathematicians\u2014the kind of sustained failure that might have suggested an\ninherently impossible task. Pierre de Fermat had conjectured in 1637 that no\nintegers _a,_ _b,_ and _c_ could satisfy the equation _a_ _[n]_ + _b_ _[n]_ = _c_ _[n]_ for any integer _n_ greater\nthan 2. He claimed to have a proof, but he died without writing it down, so his\nconjecture long remained a major unsolved problem in mathematics. Wiles started\nworking on it in 1986, but he kept it a secret until 1993, when he knew he was\nnearing a solution. After nine years of hard work, Wiles proved the conjecture in\n1995. He needed brilliance to succeed, but he also needed a faith in secrets. If you\nthink something hard is impossible, you\u2019ll never even start trying to achieve it. Belief  \nin secrets is an effective truth.  \nThe actual truth is that there are many more secrets left to find, but they will\nyield only to relentless searchers. There is more to do in science, medicine,\nengineering, and in technology of all kinds. We are within reach not just of marginal\ngoals set at the competitive edge of today\u2019s conventional disciplines, but of ambitions\nso great that even the boldest minds of the Scientific Revolution hesitated to\nannounce them directly. We could cure cancer, dementia, and all the diseases of age\nand metabolic decay. We can find new ways to generate energy that free the world\nfrom conflict over fossil fuels. We can invent faster ways to travel from place to place\nover the surface of the planet; we can even learn how to escape it entirely and settle\nnew frontiers. But we will never learn any of these secrets unless we demand to  \nknow them and force ourselves to look.  \nThe same is true of business. Great companies can be built on open but\nunsuspected secrets about how the world works.",
+        "wordCount": 346,
+        "charCount": 1983,
+        "splitLevel": "recursive",
+        "pageStart": 87,
+        "pageEnd": 87,
+        "headersHierarchy": [
+          91
+        ],
+        "headersHierarchyTitles": [
+          "H1^E"
+        ],
+        "s3_path": "courses/7f36bacc-3b9d-4c50-9d66-a52f98dd12a9/slides/d2a9a46a-82e3-4d3c-9f11-7beed7c66aca.pdf",
+        "totalPages": 186,
+        "timestamp": 1753980852.111082,
+        "sentenceSiblingCount": 2,
+        "sentenceSiblingIndex": 0,
+        "updatedAt": 1753980890.723804,
+        "isHeader": true,
+        "headerLevel": 3,
+        "headerText": "THE CASE FOR SECRETS"
+      },
+      "score": 0.7378312945365906
+    },
+    {
+      "id": "7f36bacc-3b9d-4c50-9d66-a52f98dd12a9:d2a9a46a-82e3-4d3c-9f11-7beed7c66aca:79",
+      "metadata": {
+        "courseId": "7f36bacc-3b9d-4c50-9d66-a52f98dd12a9",
+        "slideId": "d2a9a46a-82e3-4d3c-9f11-7beed7c66aca",
+        "chunkIndex": 79,
+        "rawText": "### YOU ARE NOT A LOTTERY TICKET  \nWe have to find our way back to a definite future, and the Western world needs\nnothing short of a cultural revolution to do it.  \nWhere to start? John Rawls will need to be displaced in philosophy departments.\nMalcolm Gladwell must be persuaded to change his theories. And pollsters have to\nbe driven from politics. But the philosophy professors and the Gladwells of the world\nare set in their ways, to say nothing of our politicians. It\u2019s extremely hard to make\nchanges in those crowded fields, even with brains and good intentions.  \nA startup is the largest endeavor over which you can have definite mastery. You\ncan have agency not just over your own life, but over a small and important part of\nthe world. It begins by rejecting the unjust tyranny of Chance. You are not a lottery  \nticket.",
+        "wordCount": 147,
+        "charCount": 830,
+        "splitLevel": "markdown",
+        "pageStart": 67,
+        "pageEnd": 68,
+        "headersHierarchy": [
+          60
+        ],
+        "headersHierarchyTitles": [
+          "H1^T"
+        ],
+        "s3_path": "courses/7f36bacc-3b9d-4c50-9d66-a52f98dd12a9/slides/d2a9a46a-82e3-4d3c-9f11-7beed7c66aca.pdf",
+        "totalPages": 186,
+        "timestamp": 1753980852.100806,
+        "sentenceSiblingCount": 1,
+        "sentenceSiblingIndex": 0,
+        "updatedAt": 1753980890.723744,
+        "isHeader": true,
+        "headerLevel": 3,
+        "headerText": "YOU ARE NOT A LOTTERY TICKET"
+      },
+      "score": 0.7371628284454346
+    },
+    {
+      "id": "7f36bacc-3b9d-4c50-9d66-a52f98dd12a9:d2a9a46a-82e3-4d3c-9f11-7beed7c66aca:201",
+      "metadata": {
+        "courseId": "7f36bacc-3b9d-4c50-9d66-a52f98dd12a9",
+        "slideId": "d2a9a46a-82e3-4d3c-9f11-7beed7c66aca",
+        "chunkIndex": 201,
+        "rawText": "6.2\nSquare, 4.1, 6.1\nStanford Sleep Clinic\nstartups, prf.1, 1.1, 5.1, 6.1, 6.2, 7.1  \nassigning responsibilities in  \ncash flow at  \nas cults  \ndisruption by\nduring dot-com mania  \neconomies of scale and  \nfoundations of  \nfounder\u2019s paradox in  \nlessons of dot-com mania for  \npower law in  \npublic relations in  \nsales and  \nstaff of  \ntarget market for  \nuniform of  \nventure capital and\nsteam engine\nStoppelman, Jeremy\nstring theory\nstrong AI\nsubstitution, complementarity vs.",
+        "wordCount": 70,
+        "charCount": 479,
+        "splitLevel": "recursive",
+        "pageStart": 183,
+        "pageEnd": 184,
+        "headersHierarchy": [
+          190,
+          195
+        ],
+        "headersHierarchyTitles": [
+          "H1^I",
+          "H3^_Index_"
+        ],
+        "s3_path": "courses/7f36bacc-3b9d-4c50-9d66-a52f98dd12a9/slides/d2a9a46a-82e3-4d3c-9f11-7beed7c66aca.pdf",
+        "totalPages": 186,
+        "timestamp": 1753980852.115267,
+        "sentenceSiblingCount": 8,
+        "sentenceSiblingIndex": 6,
+        "updatedAt": 1753980890.724146,
+        "isHeader": false,
+        "headerLevel": null,
+        "headerText": null
+      },
+      "score": 0.7369105219841003
+    },
+    {
+      "id": "7f36bacc-3b9d-4c50-9d66-a52f98dd12a9:d2a9a46a-82e3-4d3c-9f11-7beed7c66aca:13",
+      "metadata": {
+        "courseId": "7f36bacc-3b9d-4c50-9d66-a52f98dd12a9",
+        "slideId": "d2a9a46a-82e3-4d3c-9f11-7beed7c66aca",
+        "chunkIndex": 13,
+        "rawText": "# O\n_you on?_ \u2014is difficult to answer directly. It may be easier to start with a\npreliminary: what does everybody agree on? \u201cMadness is rare in individuals\u2014but in\ngroups, parties, nations, and ages it is the rule,\u201d Nietzsche wrote (before he went\nmad). If you can identify a delusional popular belief, you can find what lies hidden  \nbehind it: the contrarian truth.  \nConsider an elementary proposition: companies exist to make money, not to lose\nit. This should be obvious to any thinking person. But it wasn\u2019t so obvious to many in\nthe late 1990s, when no loss was too big to be described as an investment in an even\nbigger, brighter future. The conventional wisdom of the \u201cNew Economy\u201d accepted\npage views as a more authoritative, forward-looking financial metric than something\nas pedestrian as profit.  \nConventional beliefs only ever come to appear arbitrary and wrong in retrospect;\nwhenever one collapses, we call the old belief a _bubble_ . But the distortions caused by\nbubbles don\u2019t disappear when they pop. The internet craze of the \u201990s was the\nbiggest bubble since the crash of 1929, and the lessons learned afterward define and\ndistort almost all thinking about technology today. The first step to thinking clearly\nis to question what we think we know about the past.",
+        "wordCount": 216,
+        "charCount": 1283,
+        "splitLevel": "markdown",
+        "pageStart": 12,
+        "pageEnd": 13,
+        "headersHierarchy": [],
+        "headersHierarchyTitles": [],
+        "s3_path": "courses/7f36bacc-3b9d-4c50-9d66-a52f98dd12a9/slides/d2a9a46a-82e3-4d3c-9f11-7beed7c66aca.pdf",
+        "totalPages": 186,
+        "timestamp": 1753980852.096834,
+        "sentenceSiblingCount": 1,
+        "sentenceSiblingIndex": 0,
+        "updatedAt": 1753980890.723503,
+        "isHeader": true,
+        "headerLevel": 1,
+        "headerText": "O"
+      },
+      "score": 0.7367784380912781
+    }
+  ]
+}

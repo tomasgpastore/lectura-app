@@ -1,0 +1,166 @@
+{
+  "parameters": {
+    "course_id": "7f36bacc-3b9d-4c50-9d66-a52f98dd12a9",
+    "slides": [],
+    "chunks": [
+      20,
+      40,
+      60,
+      80,
+      100
+    ],
+    "prompt": "Peter Thiel key takeaways in the book",
+    "limit": 5
+  },
+  "results_count": 5,
+  "results": [
+    {
+      "id": "7f36bacc-3b9d-4c50-9d66-a52f98dd12a9:d2a9a46a-82e3-4d3c-9f11-7beed7c66aca:20",
+      "metadata": {
+        "courseId": "7f36bacc-3b9d-4c50-9d66-a52f98dd12a9",
+        "slideId": "d2a9a46a-82e3-4d3c-9f11-7beed7c66aca",
+        "chunkIndex": 20,
+        "rawText": "### LESSONS LEARNED  \n_\u2019Cause they say 2,000 zero zero party over, oops! Out of time!_  \n_So tonight I\u2019m gonna party like it\u2019s 1999!_  \n\u2014P RINCE  \nThe NASDAQ reached 5,048 at its peak in the middle of March 2000 and then\ncrashed to 3,321 in the middle of April. By the time it bottomed out at 1,114 in\nOctober 2002, the country had long since interpreted the market\u2019s collapse as a kind\nof divine judgment against the technological optimism of the \u201990s. The era of\ncornucopian hope was relabeled as an era of crazed greed and declared to be\ndefinitely over.  \nEveryone learned to treat the future as fundamentally indefinite, and to dismiss as\nan extremist anyone with plans big enough to be measured in years instead of\nquarters. Globalization replaced technology as the hope for the future. Since the \u201990s\nmigration \u201cfrom bricks to clicks\u201d didn\u2019t work as hoped, investors went back to bricks\n(housing) and BRICs (globalization). The result was another bubble, this time in real  \nestate.  \nThe entrepreneurs who stuck with Silicon Valley learned four big lessons from the\ndot-com crash that still guide business thinking today:  \n1. Make incremental advances  \nGrand visions inflated the bubble, so they should not be indulged. Anyone who\nclaims to be able to do something great is suspect, and anyone who wants to\nchange the world should be more humble. Small, incremental steps are the only\nsafe path forward.  \n2. Stay lean and flexible  \nAll companies must be \u201clean,\u201d which is code for \u201cunplanned.\u201d You should not\nknow what your business will do; planning is arrogant and inflexible. Instead\nyou should try things out, \u201citerate,\u201d and treat entrepreneurship as agnostic  \nexperimentation.  \n3. Improve on the competition  \nDon\u2019t try to create a new market prematurely. The only way to know you have\na real business is to start with an already existing customer, so you should build\nyour company by improving on recognizable products already offered by\nsuccessful competitors.  \n4.",
+        "wordCount": 327,
+        "charCount": 1985,
+        "splitLevel": "recursive",
+        "pageStart": 18,
+        "pageEnd": 20,
+        "headersHierarchy": [
+          13
+        ],
+        "headersHierarchyTitles": [
+          "H1^O"
+        ],
+        "s3_path": "courses/7f36bacc-3b9d-4c50-9d66-a52f98dd12a9/slides/d2a9a46a-82e3-4d3c-9f11-7beed7c66aca.pdf",
+        "totalPages": 186,
+        "timestamp": 1753980852.106213,
+        "sentenceSiblingCount": 2,
+        "sentenceSiblingIndex": 0,
+        "updatedAt": 1753980890.7235332,
+        "isHeader": true,
+        "headerLevel": 3,
+        "headerText": "LESSONS LEARNED"
+      },
+      "score": 0.7395562529563904
+    },
+    {
+      "id": "7f36bacc-3b9d-4c50-9d66-a52f98dd12a9:d2a9a46a-82e3-4d3c-9f11-7beed7c66aca:100",
+      "metadata": {
+        "courseId": "7f36bacc-3b9d-4c50-9d66-a52f98dd12a9",
+        "slideId": "d2a9a46a-82e3-4d3c-9f11-7beed7c66aca",
+        "chunkIndex": 100,
+        "rawText": "### HOW TO FIND SECRETS  \nThere are two kinds of secrets: secrets of nature and secrets about people. Natural\nsecrets exist all around us; to find them, one must study some undiscovered aspect of\nthe physical world. Secrets about people are different: they are things that people\ndon\u2019t know about themselves or things they hide because they don\u2019t want others to\nknow. So when thinking about what kind of company to build, there are two distinct\nquestions to ask: What secrets is nature not telling you? What secrets are people not\ntelling you?  \nIt\u2019s easy to assume that natural secrets are the most important: the people who\nlook for them can sound intimidatingly authoritative. This is why physics PhDs are\nnotoriously difficult to work with\u2014because they know the most fundamental truths,\nthey think they know _all_ truths. But does understanding electromagnetic theory\nautomatically make you a great marriage counselor? Does a gravity theorist know\nmore about your business than you do? At PayPal, I once interviewed a physics PhD\nfor an engineering job. Halfway through my first question, he shouted, \u201cStop! I\nalready know what you\u2019re going to ask!\u201d But he was wrong. It was the easiest no-hire  \ndecision I\u2019ve ever made.  \nSecrets about people are relatively underappreciated. Maybe that\u2019s because you\ndon\u2019t need a dozen years of higher education to ask the questions that uncover them:\nWhat are people not allowed to talk about? What is forbidden or taboo?  \nSometimes looking for natural secrets and looking for human secrets lead to the\nsame truth. Consider the monopoly secret again: _competition and capitalism are_\n_opposites_ . If you didn\u2019t already know it, you could discover it the natural, empirical\nway: do a quantitative study of corporate profits and you\u2019ll see they\u2019re eliminated by\ncompetition. But you could also take the human approach and ask: what are people\nrunning companies not allowed to say? You would notice that monopolists downplay\ntheir monopoly status to avoid scrutiny, while competitive firms strategically\nexaggerate their uniqueness.",
+        "wordCount": 332,
+        "charCount": 2072,
+        "splitLevel": "recursive",
+        "pageStart": 89,
+        "pageEnd": 89,
+        "headersHierarchy": [
+          91
+        ],
+        "headersHierarchyTitles": [
+          "H1^E"
+        ],
+        "s3_path": "courses/7f36bacc-3b9d-4c50-9d66-a52f98dd12a9/slides/d2a9a46a-82e3-4d3c-9f11-7beed7c66aca.pdf",
+        "totalPages": 186,
+        "timestamp": 1753980852.111221,
+        "sentenceSiblingCount": 2,
+        "sentenceSiblingIndex": 0,
+        "updatedAt": 1753980890.72381,
+        "isHeader": true,
+        "headerLevel": 3,
+        "headerText": "HOW TO FIND SECRETS"
+      },
+      "score": 0.7326593995094299
+    },
+    {
+      "id": "7f36bacc-3b9d-4c50-9d66-a52f98dd12a9:d2a9a46a-82e3-4d3c-9f11-7beed7c66aca:40",
+      "metadata": {
+        "courseId": "7f36bacc-3b9d-4c50-9d66-a52f98dd12a9",
+        "slideId": "d2a9a46a-82e3-4d3c-9f11-7beed7c66aca",
+        "chunkIndex": 40,
+        "rawText": "But in February 2000, Elon and I were more scared about the rapidly inflating  \ntech bubble than we were about each other: a financial crash would ruin us both  \nbefore we could finish our fight. So in early March we met on neutral ground\u2014a\ncaf\u00e9 almost exactly equidistant to our offices\u2014and negotiated a 50-50 merger. Deescalating the rivalry post-merger wasn\u2019t easy, but as far as problems go, it was a\ngood one to have. As a unified team, we were able to ride out the dot-com crash and  \nthen build a successful business.  \nSometimes you do have to fight. Where that\u2019s true, you should fight and win.\nThere is no middle ground: either don\u2019t throw any punches, or strike hard and end it\nquickly.  \nThis advice can be hard to follow because pride and honor can get in the way.  \nHence Hamlet:  \n_Exposing what is mortal and unsure_\n_To all that fortune, death, and danger dare,_\n_Even for an eggshell. Rightly to be great_  \n_Is not to stir without great argument,_\n_But greatly to find quarrel in a straw_  \n_When honor\u2019s at the stake._  \nFor Hamlet, greatness means willingness to fight for reasons as thin as an\neggshell: _anyone_ would fight for things that matter; true heroes take their personal\nhonor so seriously they will fight for things that _don\u2019t_ matter. This twisted logic is\npart of human nature, but it\u2019s disastrous in business. If you can recognize\ncompetition as a destructive force instead of a sign of value, you\u2019re already more sane  \nthan most. The next chapter is about how to use a clear head to build a monopoly  \nbusiness.",
+        "wordCount": 271,
+        "charCount": 1550,
+        "splitLevel": "recursive",
+        "pageStart": 37,
+        "pageEnd": 39,
+        "headersHierarchy": [
+          34,
+          36
+        ],
+        "headersHierarchyTitles": [
+          "H1^C",
+          "H3^WAR AND PEACE"
+        ],
+        "s3_path": "courses/7f36bacc-3b9d-4c50-9d66-a52f98dd12a9/slides/d2a9a46a-82e3-4d3c-9f11-7beed7c66aca.pdf",
+        "totalPages": 186,
+        "timestamp": 1753980852.1076,
+        "sentenceSiblingCount": 5,
+        "sentenceSiblingIndex": 4,
+        "updatedAt": 1753980890.723606,
+        "isHeader": false,
+        "headerLevel": null,
+        "headerText": null
+      },
+      "score": 0.7322428226470947
+    },
+    {
+      "id": "7f36bacc-3b9d-4c50-9d66-a52f98dd12a9:d2a9a46a-82e3-4d3c-9f11-7beed7c66aca:80",
+      "metadata": {
+        "courseId": "7f36bacc-3b9d-4c50-9d66-a52f98dd12a9",
+        "slideId": "d2a9a46a-82e3-4d3c-9f11-7beed7c66aca",
+        "chunkIndex": 80,
+        "rawText": "## FOLLOW THE MONEY  \nONEY MAKES MONEY . \u201cFor whoever has will be given more, and they will have",
+        "wordCount": 19,
+        "charCount": 96,
+        "splitLevel": "markdown",
+        "pageStart": 68,
+        "pageEnd": 68,
+        "headersHierarchy": [
+          60
+        ],
+        "headersHierarchyTitles": [
+          "H1^T"
+        ],
+        "s3_path": "courses/7f36bacc-3b9d-4c50-9d66-a52f98dd12a9/slides/d2a9a46a-82e3-4d3c-9f11-7beed7c66aca.pdf",
+        "totalPages": 186,
+        "timestamp": 1753980852.1008608,
+        "sentenceSiblingCount": 1,
+        "sentenceSiblingIndex": 0,
+        "updatedAt": 1753980890.723746,
+        "isHeader": true,
+        "headerLevel": 2,
+        "headerText": "FOLLOW THE MONEY"
+      },
+      "score": 0.718467116355896
+    },
+    {
+      "id": "7f36bacc-3b9d-4c50-9d66-a52f98dd12a9:d2a9a46a-82e3-4d3c-9f11-7beed7c66aca:60",
+      "metadata": {
+        "courseId": "7f36bacc-3b9d-4c50-9d66-a52f98dd12a9",
+        "slideId": "d2a9a46a-82e3-4d3c-9f11-7beed7c66aca",
+        "chunkIndex": 60,
+        "rawText": "# T  \nor skill.  \nWhat do successful people say? Malcolm Gladwell, a successful author who writes\nabout successful people, declares in _Outliers_ that success results from a \u201cpatchwork of\nlucky breaks and arbitrary advantages.\u201d Warren Buffett famously considers himself\na \u201cmember of the lucky sperm club\u201d and a winner of the \u201covarian lottery.\u201d Jeff\nBezos attributes Amazon\u2019s success to an \u201cincredible planetary alignment\u201d and jokes\nthat it was \u201chalf luck, half good timing, and the rest brains.\u201d Bill Gates even goes so\nfar as to claim that he \u201cwas lucky to be born with certain skills,\u201d though it\u2019s not clear\nwhether that\u2019s actually possible.  \nPerhaps these guys are being strategically humble. However, the phenomenon of\nserial entrepreneurship would seem to call into question our tendency to explain\nsuccess as the product of chance. Hundreds of people have started multiple\nmultimillion-dollar businesses. A few, like Steve Jobs, Jack Dorsey, and Elon Musk,\nhave created several multi _billion_ -dollar companies. If success were mostly a matter\nof luck, these kinds of serial entrepreneurs probably wouldn\u2019t exist.  \nIn January 2013, Jack Dorsey, founder of Twitter and Square, tweeted to his 2  \nmillion followers: \u201cSuccess is never accidental.\u201d  \nMost of the replies were unambiguously negative. Referencing the tweet in _The_\n_Atlantic,_ reporter Alexis Madrigal wrote that his instinct was to reply: \u201c \u2018Success is\nnever accidental,\u2019 said all multimillionaire white men.\u201d It\u2019s true that already\nsuccessful people have an easier time doing new things, whether due to their\nnetworks, wealth, or experience. But perhaps we\u2019ve become too quick to dismiss\nanyone who claims to have succeeded according to plan.  \nIs there a way to settle this debate objectively? Unfortunately not, because\ncompanies are not experiments. To get a scientific answer about Facebook, for\nexample, we\u2019d have to rewind to 2004, create 1,000 copies of the world, and start\nFacebook in each copy to see how many times it would succeed. But that experiment\nis impossible.",
+        "wordCount": 321,
+        "charCount": 2051,
+        "splitLevel": "recursive",
+        "pageStart": 50,
+        "pageEnd": 50,
+        "headersHierarchy": [],
+        "headersHierarchyTitles": [],
+        "s3_path": "courses/7f36bacc-3b9d-4c50-9d66-a52f98dd12a9/slides/d2a9a46a-82e3-4d3c-9f11-7beed7c66aca.pdf",
+        "totalPages": 186,
+        "timestamp": 1753980852.1088178,
+        "sentenceSiblingCount": 2,
+        "sentenceSiblingIndex": 0,
+        "updatedAt": 1753980890.7236722,
+        "isHeader": true,
+        "headerLevel": 1,
+        "headerText": "T"
+      },
+      "score": 0.7088625431060791
+    }
+  ]
+}

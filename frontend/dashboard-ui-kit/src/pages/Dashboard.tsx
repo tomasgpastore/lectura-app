@@ -169,7 +169,7 @@ export const Dashboard: React.FC = () => {
               Your Classes
             </h1>
             <p className="text-gray-600 dark:text-gray-400 mt-2">
-              Manage your course materials and AI-powered study sessions
+              Manage your classes files and AI-powered learning sessions
             </p>
           </div>
           

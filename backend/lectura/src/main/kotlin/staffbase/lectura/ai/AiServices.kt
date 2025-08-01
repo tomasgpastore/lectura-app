@@ -8,16 +8,12 @@ import org.springframework.http.MediaType
 import org.springframework.stereotype.Service
 import org.springframework.web.client.RestTemplate
 import org.springframework.web.client.HttpStatusCodeException
-import staffbase.lectura.ai.chat.ChatMessage
 import staffbase.lectura.ai.chat.ChatService
 import staffbase.lectura.dto.ai.ChatOutboundDTO
 import staffbase.lectura.dto.ai.ChatResponseDTO
 import java.net.HttpURLConnection
 import com.fasterxml.jackson.databind.ObjectMapper
-import org.springframework.data.web.JsonPath
-import staffbase.lectura.ai.chat.ChatTurn
 import java.net.URI
-import java.time.Instant
 
 data class SlideProcessingRequest(
     @JsonProperty("course_id")
@@ -165,8 +161,7 @@ class AiChatService(
                                             .data(data))
                                     }
                                     "end" -> {
-                                        // Save conversation to Redis and complete stream
-                                        saveConversationToRedis(userId, courseId, userPrompt, aiResponseBuilder.toString())
+                                        // AI service handles persistence, just complete the stream
                                         emitter.send(SseEmitter.event()
                                             .name("end")
                                             .data(data))
@@ -198,15 +193,26 @@ class AiChatService(
         userId: String,
         courseId: String,
         userPrompt: String,
-        snapshot: String? = null,
-        priorityDocuments: List<String>? = null
+        snapshots: List<String>,
+        slidePriority: List<String>,
+        searchType: SearchType,
     ): ChatResponseDTO {
+        // Convert enum to string
+        val searchTypeString = when (searchType) {
+            SearchType.DEFAULT -> "DEFAULT"
+            SearchType.RAG -> "RAG"
+            SearchType.WEB -> "WEB"
+            SearchType.RAG_WEB -> "RAG_WEB"
+        }
+
         // Build the outbound request payload
         val request = ChatOutboundDTO(
-            courseId   = courseId,
-            userId     = userId,
-            userPrompt   = userPrompt,
-            snapshot = snapshot
+            courseId = courseId,
+            userId = userId,
+            userPrompt = userPrompt,
+            slidePriority = slidePriority,
+            searchType = searchTypeString,
+            snapshots = snapshots
         )
 
         // Open and configure the HTTP connection
@@ -227,43 +233,8 @@ class AiChatService(
         // Read the full JSON response
         val responseJson = connection.inputStream.bufferedReader().use { it.readText() }
 
-        val aiAnswer = objectMapper.readValue(responseJson, ChatResponseDTO::class.java)
-
-        saveConversationToRedis(userId, courseId, userPrompt, aiAnswer.response, aiAnswer.data)
         // Deserialize into ChatResponseDTO and return
-        return aiAnswer
-    }
-
-    
-    private fun saveConversationToRedis(userId: String, courseId: String, userPrompt: String, aiResponse: String, sources: List<Source>) {
-        try {
-            // Save user message
-            val userMessage = ChatMessage(
-                role = "user",
-                content = userPrompt,
-                timestamp = Instant.now()
-            )
-
-            // Save AI response
-            val assistantMessage = ChatMessage(
-                role = "assistant",
-                content = aiResponse,
-                sources = sources,
-                timestamp = Instant.now()
-            )
-
-            val chatTurn = ChatTurn(
-                userMessage = userMessage,
-                userId = userId,
-                courseId = courseId,
-                assistantMessage = assistantMessage
-            )
-
-            chatService.addMessage(userId, courseId, chatTurn)
-            
-        } catch (e: Exception) {
-            // Log error but don't fail the stream
-            println("Error saving conversation to Redis: ${e.message}")
-        }
+        // This includes response, ragSources, and webSources
+        return objectMapper.readValue(responseJson, ChatResponseDTO::class.java)
     }
 }
