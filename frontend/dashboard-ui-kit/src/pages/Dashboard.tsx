@@ -186,9 +186,6 @@ export const Dashboard: React.FC = () => {
 
         {courses.length === 0 ? (
           <div className="text-center py-24 mt-16">
-            <div className="w-24 h-24 bg-gradient-to-br from-orange-100 to-red-100 dark:from-orange-900/30 dark:to-red-900/30 rounded-full flex items-center justify-center mx-auto mb-6">
-              <Plus className="w-12 h-12 text-orange-600 dark:text-orange-400" />
-            </div>
             <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">
               No classes yet
             </h3>

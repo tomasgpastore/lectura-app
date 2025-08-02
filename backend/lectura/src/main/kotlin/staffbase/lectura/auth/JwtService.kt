@@ -45,5 +45,22 @@ class JwtService(private val jwtConfig: JwtConfig) {
         val token = authHeader.removePrefix("Bearer ").trim()
         return parseAccessToken(token).subject
     }
+    
+    fun extractUserId(token: String): String {
+        return parseAccessToken(token).subject
+    }
+    
+    fun isTokenValid(token: String, userId: String): Boolean {
+        return try {
+            val decodedJWT = parseAccessToken(token)
+            decodedJWT.subject == userId && !isTokenExpired(decodedJWT)
+        } catch (e: Exception) {
+            false
+        }
+    }
+    
+    private fun isTokenExpired(decodedJWT: DecodedJWT): Boolean {
+        return decodedJWT.expiresAt?.before(java.util.Date()) ?: true
+    }
 
 }
