@@ -10,6 +10,11 @@ import staffbase.lectura.ai.EmbeddingProcessingService
 import java.util.UUID
 import org.apache.pdfbox.pdmodel.PDDocument
 import org.bson.types.ObjectId
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import org.springframework.data.redis.core.StringRedisTemplate
+import java.util.concurrent.TimeUnit
 
 
 @Service
@@ -18,6 +23,7 @@ class SlideService(
     val courseServices: CourseService,
     val slideDAO: SlideDAO,
     val embeddingProcessingService: EmbeddingProcessingService,
+    val redisTemplate: StringRedisTemplate,
 ){
 
     fun getAllSlidesForCourse(userId : String, courseId : String) : List<Slide>{
@@ -73,13 +79,31 @@ class SlideService(
             return false
         }
 
-        // Call microservice to process embeddings
-        if (!embeddingProcessingService.processSlideEmbeddings(courseId, newSlideId, storageSlideId)) {
-            // Cleanup on microservice failure
-            courseServices.updateCourse(courseId, course) // Restore original course
-            slideDAO.delete(newSlideId)
-            fileStorageService.delete(storageSlideId)
-            return false
+        // Process embeddings asynchronously in a background thread
+        val processId = UUID.randomUUID().toString()
+        val lockKey = "embedding_process:$userId:$courseId:$processId"
+        
+        CoroutineScope(Dispatchers.IO).launch {
+            try {
+                // Set the lock with a TTL of 5 minutes (in case the process hangs)
+                redisTemplate.opsForValue().set(lockKey, "processing:$newSlideId", 5, TimeUnit.MINUTES)
+                println("Started embedding processing for slide $newSlideId with lock $lockKey")
+                
+                val success = embeddingProcessingService.processSlideEmbeddings(courseId, newSlideId, storageSlideId)
+                if (!success) {
+                    println("Failed to process embeddings for slide $newSlideId in course $courseId")
+                    // Note: We don't rollback here since the slide is already uploaded
+                    // The embeddings can be processed later or manually triggered
+                }
+                
+                println("Completed embedding processing for slide $newSlideId")
+            } catch (e: Exception) {
+                println("Error processing embeddings for slide $newSlideId: ${e.message}")
+            } finally {
+                // Always remove the lock when done
+                redisTemplate.delete(lockKey)
+                println("Removed lock $lockKey for slide $newSlideId")
+            }
         }
 
         return true

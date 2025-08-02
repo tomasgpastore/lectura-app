@@ -7,6 +7,7 @@ import os
 import json
 import logging
 import uuid
+from datetime import datetime, timezone
 from enum import Enum
 from typing import Annotated, TypedDict, Optional, List, Dict, Any
 
@@ -94,6 +95,7 @@ class GraphState(TypedDict):
     web_sources: List[Dict[str, Any]]
     image_sources: List[Dict[str, Any]]
     final_response: Optional[str]
+    sources_map: Optional[Dict[str, Dict[str, Any]]]
 
 
 class OutboundAgent:
@@ -239,7 +241,7 @@ Course ID: {course_id}"""
         
         # Add image tool information if snapshot is available
         if has_snapshot:
-            base_prompt += "\n\nIMPORTANT: The user has provided an image with their message. You MUST use the current_user_view tool to see this image when the user asks about it or references it in any way."
+            base_prompt += "\n\nIMPORTANT: The user has provided an image with their message. To analyze this image, you MUST use the current_user_view tool with a specific query about what you want to know about the image."
         
         base_prompt += "\nYou can use previous_user_view to access images from earlier in the conversation if needed."
         
@@ -249,11 +251,11 @@ Course ID: {course_id}"""
 Answer the user's question based on your general knowledge. Be helpful and informative.
 
 Available tools:
-- current_user_view: Use this to view any image the user has provided
-- previous_user_view: Use this to access images from earlier messages
-- retrieve_previous_sources: Use this to access sources from earlier messages
+- current_user_view: Analyze the user's image with a specific query
+- previous_user_view: Access images from earlier messages
+- retrieve_previous_sources: Access sources from earlier messages
 
-If the user asks about an image or references something visual, you MUST use the appropriate image viewing tool."""
+If the user asks about an image, use current_user_view with a relevant query to analyze it."""
         
         elif search_type == SearchType.RAG:
             return base_prompt + """
@@ -327,7 +329,15 @@ Note: You can use retrieve_previous_sources to access sources from earlier messa
             msg = messages[i]
             if isinstance(msg, ToolMessage):
                 try:
+                    # Handle different content types
+                    if not msg.content:
+                        logger.warning(f"Empty content for tool message: {msg.name}")
+                        continue
+                    
                     tool_result = json.loads(msg.content) if isinstance(msg.content, str) else msg.content
+                    
+                    # Log the tool result for debugging
+                    logger.debug(f"Tool {msg.name} result: {tool_result}")
                     
                     if msg.name == "rag_search_tool" and tool_result.get("success"):
                         for source in tool_result.get("results", []):
@@ -359,42 +369,50 @@ Note: You can use retrieve_previous_sources to access sources from earlier messa
                         ))
                     
                     elif msg.name == "previous_user_view" and tool_result.get("success"):
-                        # Add previous images as sources
-                        for idx, img in enumerate(tool_result.get("images", []), 1):
-                            image_sources.append(ImageSource(
-                                id=str(idx + 1),  # Start from 2 since current is 1
-                                type="previous",
-                                message_id=img.get("message_id"),
-                                timestamp=img.get("timestamp")
-                            ))
+                        # Add previous image as a source
+                        image_sources.append(ImageSource(
+                            id=str(len(image_sources) + 1),
+                            type="previous",
+                            message_id=tool_result.get("message_id"),
+                            timestamp=tool_result.get("timestamp")
+                        ))
                             
+                except json.JSONDecodeError as e:
+                    logger.error(f"JSON decode error for tool {getattr(msg, 'name', 'unknown')}: {e}")
+                    logger.error(f"Content type: {type(msg.content)}, Content: {msg.content[:200] if msg.content else 'None'}")
                 except Exception as e:
-                    logger.error(f"Error processing tool message: {e}")
+                    logger.error(f"Error processing tool message {getattr(msg, 'name', 'unknown')}: {e}")
+                    logger.error(f"Full error details: ", exc_info=True)
         
-        # Generate message ID for source storage
-        message_id = str(uuid.uuid4())
+        # Find the final AI message and assign it an ID if it doesn't have one
+        message_id = None
+        if final_ai_msg_index >= 0:
+            final_ai_msg = messages[final_ai_msg_index]
+            if not hasattr(final_ai_msg, 'id') or not final_ai_msg.id:
+                message_id = str(uuid.uuid4())
+                final_ai_msg.id = message_id
+            else:
+                message_id = final_ai_msg.id
         
-        # Store sources separately (async)
-        try:
-            thread_id = config.get("configurable", {}).get("thread_id", "")
-            if thread_id and ":" in thread_id:
-                user_id, course_id = thread_id.split(":", 1)
-                await self.state_manager.save_sources(
-                    user_id=user_id,
-                    course_id=course_id,
-                    message_id=message_id,
-                    rag_sources=[s.dict() for s in rag_sources],
-                    web_sources=[s.dict() for s in web_sources]
-                )
-                logger.info(f"Saved sources for message {message_id}")
-        except Exception as e:
-            logger.error(f"Error saving sources: {e}")
+        # Store sources data in the state for later saving with the message
+        sources_data = None
+        if message_id and (rag_sources or web_sources or image_sources):
+            sources_data = {
+                message_id: {
+                    "message_id": message_id,
+                    "rag_sources": [s.dict() for s in rag_sources],
+                    "web_sources": [s.dict() for s in web_sources],
+                    "image_sources": [s.dict() for s in image_sources],
+                    "timestamp": datetime.now(timezone.utc).isoformat()
+                }
+            }
         
         return {
             "final_response": final_message,
             "rag_sources": [s.dict() for s in rag_sources],
             "web_sources": [s.dict() for s in web_sources],
-            "image_sources": [s.dict() for s in image_sources]
+            "image_sources": [s.dict() for s in image_sources],
+            "sources_map": sources_data
         }
     
     async def process_query(
@@ -431,7 +449,10 @@ Note: You can use retrieve_previous_sources to access sources from earlier messa
                 logger.info(f"Using snapshot with length: {len(snapshot_b64)}")
             
             # Build graph with specific user/course context and snapshot
-            self.graph = self._build_graph(user_id, course_id, snapshot_b64).compile()
+            # Add recursion limit to prevent infinite loops
+            self.graph = self._build_graph(user_id, course_id, snapshot_b64).compile(
+                recursion_limit=10  # Allows complex workflows while preventing runaway loops
+            )
             
             # Get conversation history (will be stripped of images)
             history = await self.state_manager.get_conversation_history(user_id, course_id)
@@ -457,18 +478,20 @@ Note: You can use retrieve_previous_sources to access sources from earlier messa
                 "rag_sources": [],
                 "web_sources": [],
                 "image_sources": [],
-                "final_response": None
+                "final_response": None,
+                "sources_map": None
             }
             
             # Run the graph
             config = {"configurable": {"thread_id": f"{user_id}:{course_id}"}}
             final_state = await self.graph.ainvoke(initial_state, config)
             
-            # Save conversation history
+            # Save conversation history with sources
             await self.state_manager.append_messages(
                 user_id, 
                 course_id,
-                [msg for msg in final_state["messages"] if msg not in history]
+                [msg for msg in final_state["messages"] if msg not in history],
+                final_state.get("sources_map")
             )
             
             # Build response

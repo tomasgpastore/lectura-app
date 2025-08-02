@@ -64,7 +64,7 @@ def get_redis_client() -> redis.Redis:
     return _redis_client
 
 
-def serialize_message(message: BaseMessage) -> Dict[str, Any]:
+def serialize_message(message: BaseMessage, sources: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
     """Convert a LangChain message to a serializable dictionary."""
     content = message.content
     
@@ -81,7 +81,7 @@ def serialize_message(message: BaseMessage) -> Dict[str, Any]:
         else:
             content = filtered_content if filtered_content else ""
     
-    return {
+    result = {
         "type": message.__class__.__name__.lower().replace("message", ""),
         "content": content,
         "additional_kwargs": getattr(message, "additional_kwargs", {}),
@@ -91,6 +91,12 @@ def serialize_message(message: BaseMessage) -> Dict[str, Any]:
         "tool_calls": getattr(message, "tool_calls", []),
         "tool_call_id": getattr(message, "tool_call_id", None),
     }
+    
+    # Add sources for AI messages if provided
+    if isinstance(message, AIMessage) and sources:
+        result["sources"] = sources
+    
+    return result
 
 
 def deserialize_message(data: Dict[str, Any]) -> BaseMessage:
@@ -240,11 +246,36 @@ class AgentStateManager:
         Returns:
             Success status
         """
+        return await self.save_messages_with_sources(user_id, course_id, messages, None)
+    
+    async def save_messages_with_sources(
+        self, 
+        user_id: str, 
+        course_id: str, 
+        messages: List[BaseMessage],
+        sources_map: Optional[Dict[str, Dict[str, Any]]] = None
+    ) -> bool:
+        """
+        Save messages to both Redis and MongoDB with optional sources.
+        
+        Args:
+            user_id: User identifier
+            course_id: Course identifier
+            messages: List of messages to save
+            sources_map: Optional map of message_id to sources
+            
+        Returns:
+            Success status
+        """
         thread_id = self.get_thread_id(user_id, course_id)
         redis_key = f"{self.redis_prefix}{thread_id}"
         
-        # Serialize messages
-        serialized_messages = [serialize_message(msg) for msg in messages]
+        # Serialize messages with sources
+        serialized_messages = []
+        for msg in messages:
+            msg_id = getattr(msg, "id", None)
+            sources = sources_map.get(msg_id) if sources_map and msg_id else None
+            serialized_messages.append(serialize_message(msg, sources))
         
         state_data = {
             "thread_id": thread_id,
@@ -290,7 +321,8 @@ class AgentStateManager:
         self, 
         user_id: str, 
         course_id: str, 
-        new_messages: List[BaseMessage]
+        new_messages: List[BaseMessage],
+        sources_map: Optional[Dict[str, Dict[str, Any]]] = None
     ) -> bool:
         """
         Append new messages to existing conversation.
@@ -299,12 +331,13 @@ class AgentStateManager:
             user_id: User identifier
             course_id: Course identifier
             new_messages: New messages to append
+            sources_map: Optional map of message_id to sources
             
         Returns:
             Success status
         """
         # Get existing messages
-        existing_messages = await self.get_conversation_history(user_id, course_id, limit=100)
+        existing_messages = await self.get_conversation_history(user_id, course_id, limit=50)
         
         # Append new messages
         all_messages = existing_messages + new_messages
@@ -313,8 +346,8 @@ class AgentStateManager:
         if len(all_messages) > 100:
             all_messages = all_messages[-100:]
         
-        # Save all messages
-        return await self.save_messages(user_id, course_id, all_messages)
+        # Save all messages with sources
+        return await self.save_messages_with_sources(user_id, course_id, all_messages, sources_map)
     
     async def clear_conversation(self, user_id: str, course_id: str) -> bool:
         """
@@ -362,7 +395,7 @@ class AgentStateManager:
         web_sources: List[Dict[str, Any]]
     ) -> bool:
         """
-        Save sources for a specific message.
+        Save sources for a specific message to both MongoDB and Redis.
         
         Args:
             user_id: User identifier
@@ -384,6 +417,28 @@ class AgentStateManager:
             "timestamp": datetime.now(timezone.utc).isoformat()
         }
         
+        success = True
+        
+        # Save to MongoDB - update the message with its sources
+        try:
+            # Find the AI message with this ID and add sources to it
+            self.mongo_collection.update_one(
+                {
+                    "thread_id": thread_id,
+                    "messages.id": message_id
+                },
+                {
+                    "$set": {
+                        "messages.$.sources": sources_data
+                    }
+                }
+            )
+            logger.info(f"Saved sources to MongoDB for message {message_id} in thread {thread_id}")
+        except Exception as e:
+            logger.error(f"Error saving sources to MongoDB: {e}")
+            success = False
+        
+        # Save to Redis as cache
         try:
             # Store in Redis hash with message_id as field
             self.redis_client.hset(
@@ -394,12 +449,12 @@ class AgentStateManager:
             # Set expiration
             self.redis_client.expire(redis_sources_key, self.redis_ttl)
             
-            logger.info(f"Saved sources for message {message_id} in thread {thread_id}")
-            return True
-            
+            logger.info(f"Cached sources in Redis for message {message_id}")
         except Exception as e:
-            logger.error(f"Error saving sources: {e}")
-            return False
+            logger.warning(f"Error caching sources in Redis: {e}")
+            # Don't fail if Redis cache fails
+            
+        return success
     
     async def get_sources_for_messages(
         self,
@@ -408,7 +463,7 @@ class AgentStateManager:
         message_ids: List[str]
     ) -> Dict[str, Dict[str, Any]]:
         """
-        Retrieve sources for specific messages.
+        Retrieve sources for specific messages from Redis (cache) or MongoDB.
         
         Args:
             user_id: User identifier
@@ -422,20 +477,55 @@ class AgentStateManager:
         redis_sources_key = f"{self.redis_sources_prefix}{thread_id}"
         
         sources_by_message = {}
+        missing_ids = []
         
+        # Try Redis first
         try:
-            # Get sources from Redis
             for message_id in message_ids:
                 sources_data = self.redis_client.hget(redis_sources_key, message_id)
                 if sources_data:
                     sources_by_message[message_id] = json.loads(sources_data)
+                else:
+                    missing_ids.append(message_id)
             
-            logger.info(f"Retrieved sources for {len(sources_by_message)} messages")
-            return sources_by_message
-            
+            if sources_by_message:
+                logger.info(f"Retrieved {len(sources_by_message)} sources from Redis cache")
         except Exception as e:
-            logger.error(f"Error retrieving sources: {e}")
-            return {}
+            logger.warning(f"Error retrieving from Redis: {e}")
+            missing_ids = message_ids
+        
+        # If we have missing IDs, try MongoDB
+        if missing_ids:
+            try:
+                # Get the document with messages
+                doc = self.mongo_collection.find_one(
+                    {"thread_id": thread_id},
+                    {"messages": 1}
+                )
+                
+                if doc and "messages" in doc:
+                    # Look for messages with sources
+                    for msg in doc["messages"]:
+                        if msg.get("id") in missing_ids and "sources" in msg:
+                            sources_by_message[msg["id"]] = msg["sources"]
+                            
+                            # Cache in Redis for next time
+                            try:
+                                self.redis_client.hset(
+                                    redis_sources_key,
+                                    msg["id"],
+                                    json.dumps(msg["sources"])
+                                )
+                            except Exception as e:
+                                logger.warning(f"Error caching to Redis: {e}")
+                    
+                    logger.info(f"Retrieved {len(sources_by_message) - len(missing_ids)} additional sources from MongoDB")
+                    
+            except Exception as e:
+                logger.error(f"Error retrieving from MongoDB: {e}")
+        
+        logger.info(f"Total sources retrieved: {len(sources_by_message)}")
+        return sources_by_message
     
     async def get_all_sources(
         self,

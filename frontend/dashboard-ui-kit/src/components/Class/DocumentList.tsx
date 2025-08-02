@@ -116,6 +116,20 @@ export const DocumentList: React.FC<DocumentListProps> = React.memo(({
                     `${formatFileSize(doc.size)} • ${doc.uploadedAt.toLocaleDateString()}`
                   )}
                 </p>
+                {/* Progress bar for uploading files */}
+                {doc.isLoading && (
+                  <div className="mt-2">
+                    <div className="w-full bg-gray-200 dark:bg-neutral-600 rounded-full h-1.5">
+                      <div 
+                        className="bg-[#F97316] h-1.5 rounded-full transition-all duration-300 ease-out"
+                        style={{ width: `${doc.uploadProgress || 0}%` }}
+                      />
+                    </div>
+                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                      {doc.uploadProgress ? `${Math.round(doc.uploadProgress)}%` : '0%'}
+                    </p>
+                  </div>
+                )}
               </div>
             </div>
             

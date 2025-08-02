@@ -168,6 +168,7 @@ class ChatMongoDAO(
         // Delete Redis caches
         redisTemplate.delete("agent_state:$userId:$courseId")
         redisTemplate.delete("agent_sources:$userId:$courseId")
+        redisTemplate.delete("agent_images:$userId:$courseId")
         
         // Delete from MongoDB
         val threadId = "$userId:$courseId"

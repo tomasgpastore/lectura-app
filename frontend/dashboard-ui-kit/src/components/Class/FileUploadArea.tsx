@@ -74,7 +74,7 @@ export const FileUploadArea: React.FC<FileUploadAreaProps> = ({ onFilesUploaded 
           {isDragOver ? 'Drop files here' : 'Click to upload or drag and drop'}
         </p>
         <p className="text-xs text-gray-500 dark:text-gray-500 mt-1">
-          PDF • Max 10MB per file
+          PDF • Max 150MB per file
         </p>
       </label>
     </div>
