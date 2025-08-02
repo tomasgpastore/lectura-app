@@ -16,7 +16,11 @@ interface HeaderProps {
 export const Header: React.FC<HeaderProps> = ({ showAuth = true, courseName, courseCode, lightBlueTheme = false }) => {
   const { isDark, toggleTheme } = useTheme();
   const { logout, isLoading } = useAuth();
-  const [user, setUser] = useState<UserType | null>(null);
+  const [user, setUser] = useState<UserType | null>(() => {
+    // Initialize user from localStorage if available
+    const storedUser = localStorage.getItem('user');
+    return storedUser ? JSON.parse(storedUser) : null;
+  });
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const queryClient = useQueryClient();
@@ -25,13 +29,13 @@ export const Header: React.FC<HeaderProps> = ({ showAuth = true, courseName, cou
   const { data: userData } = useQuery({
     queryKey: ['user'],
     queryFn: async () => {
-      const accessToken = localStorage.getItem('accessToken');
-      if (accessToken) {
-        return authApi.getCurrentUser(accessToken);
+      const csrfToken = localStorage.getItem('csrfToken');
+      if (csrfToken) {
+        return authApi.getCurrentUser();
       }
-      return Promise.reject(new Error('No access token found'));
+      return Promise.reject(new Error('Not authenticated'));
     },
-    enabled: !!localStorage.getItem('accessToken')
+    enabled: !!localStorage.getItem('csrfToken')
   });
 
   // Close dropdown when clicking outside

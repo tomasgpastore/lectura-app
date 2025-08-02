@@ -2,7 +2,7 @@ package staffbase.lectura.ai
 
 import jakarta.validation.Valid
 import org.springframework.web.bind.annotation.*
-import staffbase.lectura.auth.JwtService
+import staffbase.lectura.auth.AuthenticationService
 import staffbase.lectura.dto.ai.ChatFrontDTO
 import staffbase.lectura.dto.ai.ChatResponseDTO
 
@@ -10,17 +10,16 @@ import staffbase.lectura.dto.ai.ChatResponseDTO
 @RequestMapping("/ai")
 class AiController(
     private val aiChatService: AiChatService,
-    private val jwtService: JwtService
+    private val authenticationService: AuthenticationService
 ) {
 
     @PostMapping("/chat"
         //, produces = [MediaType.TEXT_EVENT_STREAM_VALUE]
         )
     fun generateAnswer(
-        @RequestHeader("Authorization") authHeader: String,
         @RequestBody @Valid request: ChatFrontDTO
     ): ChatResponseDTO {
-        val userId = jwtService.extractUserIdFromHeader(authHeader)
+        val userId = authenticationService.requireCurrentUserId()
         
         return aiChatService.generateAnswer(
             userId = userId,

@@ -449,10 +449,7 @@ Note: You can use retrieve_previous_sources to access sources from earlier messa
                 logger.info(f"Using snapshot with length: {len(snapshot_b64)}")
             
             # Build graph with specific user/course context and snapshot
-            # Add recursion limit to prevent infinite loops
-            self.graph = self._build_graph(user_id, course_id, snapshot_b64).compile(
-                recursion_limit=10  # Allows complex workflows while preventing runaway loops
-            )
+            self.graph = self._build_graph(user_id, course_id, snapshot_b64).compile()
             
             # Get conversation history (will be stripped of images)
             history = await self.state_manager.get_conversation_history(user_id, course_id)
@@ -482,8 +479,11 @@ Note: You can use retrieve_previous_sources to access sources from earlier messa
                 "sources_map": None
             }
             
-            # Run the graph
-            config = {"configurable": {"thread_id": f"{user_id}:{course_id}"}}
+            # Run the graph with recursion limit
+            config = {
+                "configurable": {"thread_id": f"{user_id}:{course_id}"},
+                "recursion_limit": 10  # Prevent infinite loops
+            }
             final_state = await self.graph.ainvoke(initial_state, config)
             
             # Save conversation history with sources

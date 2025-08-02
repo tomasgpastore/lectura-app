@@ -35,7 +35,7 @@ class ChatMongoDAO(
     override fun getLastMessages(userId: String, courseId: String, limit: Int): List<ChatMessage> {
         val redisKey = "agent_state:$userId:$courseId"
         val sourcesKey = "agent_sources:$userId:$courseId"
-        
+
         // Try to get from Redis first
         val cachedState = redisTemplate.opsForValue().get(redisKey)
         
@@ -45,14 +45,7 @@ class ChatMongoDAO(
                 val jsonNode = objectMapper.readTree(cachedState)
                 val messagesNode = jsonNode.get("messages")
                 if (messagesNode != null && messagesNode.isArray) {
-                    val agentMessages = messagesNode.map { node ->
-                        AgentMessage(
-                            type = node.get("type").asText(),
-                            content = node.get("content").asText(),
-                            id = node.get("id")?.asText()
-                        )
-                    }
-                    convertAgentMessagesToChatMessages(agentMessages, sourcesKey)
+                    convertJsonNodesToChatMessages(messagesNode)
                 } else {
                     println("No messages array found in Redis cache")
                     fetchFromMongoAndCache(userId, courseId, redisKey, sourcesKey)
@@ -98,6 +91,84 @@ class ChatMongoDAO(
         }
     }
     
+    private fun convertJsonNodesToChatMessages(
+        messagesNode: JsonNode
+    ): List<ChatMessage> {
+        val messages = mutableListOf<ChatMessage>()
+        
+        messagesNode.forEach { msgNode ->
+            val type = msgNode.get("type")?.asText() ?: return@forEach
+            
+            // Only process human and ai messages
+            if (type == "human" || type == "ai") {
+                val content = msgNode.get("content")?.asText() ?: ""
+                val role = if (type == "human") "user" else "assistant"
+                
+                // Extract sources for AI messages
+                val (ragSources, webSources) = if (type == "ai") {
+                    extractSourcesFromMessage(msgNode)
+                } else {
+                    Pair(emptyList(), emptyList())
+                }
+                
+                messages.add(
+                    ChatMessage(
+                        role = role,
+                        content = content,
+                        ragSources = ragSources,
+                        webSources = webSources,
+                        timestamp = Instant.now()
+                    )
+                )
+            }
+        }
+        
+        return messages.reversed() // Reverse to get newest first
+    }
+    
+    private fun extractSourcesFromMessage(messageNode: JsonNode): Pair<List<RagSource>, List<WebSource>> {
+        val sourcesNode = messageNode.get("sources") ?: return Pair(emptyList(), emptyList())
+        
+        val ragSources = mutableListOf<RagSource>()
+        val webSources = mutableListOf<WebSource>()
+        
+        try {
+            val ragSourcesNode = sourcesNode.get("rag_sources")
+            if (ragSourcesNode != null && ragSourcesNode.isArray) {
+                ragSourcesNode.forEach { src ->
+                    ragSources.add(
+                        RagSource(
+                            id = src.get("id")?.asText() ?: "",
+                            slide = src.get("slide")?.asText() ?: "",
+                            s3file = src.get("s3file")?.asText() ?: "",
+                            start = src.get("start")?.asText() ?: "",
+                            end = src.get("end")?.asText() ?: "",
+                            text = src.get("text")?.asText() ?: ""
+                        )
+                    )
+                }
+            }
+            
+            val webSourcesNode = sourcesNode.get("web_sources")
+            if (webSourcesNode != null && webSourcesNode.isArray) {
+                webSourcesNode.forEach { src ->
+                    webSources.add(
+                        WebSource(
+                            id = src.get("id")?.asText() ?: "",
+                            title = src.get("title")?.asText() ?: "",
+                            url = src.get("url")?.asText() ?: "",
+                            text = src.get("text")?.asText() ?: ""
+                        )
+                    )
+                }
+            }
+        } catch (e: Exception) {
+            println("Error extracting sources from message: ${e.message}")
+        }
+        
+        return Pair(ragSources, webSources)
+    }
+    
     private fun convertAgentMessagesToChatMessages(
         agentMessages: List<AgentMessage>,
         sourcesKey: String
@@ -109,9 +180,18 @@ class ChatMongoDAO(
         return relevantMessages.map { msg ->
             val role = if (msg.type == "human") "user" else "assistant"
             
-            // Get sources for assistant messages
-            val (ragSources, webSources) = if (role == "assistant" && msg.id != null) {
-                getSourcesForMessage(sourcesKey, msg.id)
+            // Extract sources directly from the message if available
+            val (ragSources, webSources) = if (role == "assistant") {
+                // First try to extract from the message itself (new format)
+                val embeddedSources = extractSourcesFromAgentMessage(msg)
+                if (embeddedSources.first.isNotEmpty() || embeddedSources.second.isNotEmpty()) {
+                    embeddedSources
+                } else if (msg.id != null) {
+                    // Fallback to the old format (sources in separate Redis hash)
+                    getSourcesForMessage(sourcesKey, msg.id)
+                } else {
+                    Pair(emptyList(), emptyList())
+                }
             } else {
                 Pair(emptyList(), emptyList())
             }
@@ -126,6 +206,45 @@ class ChatMongoDAO(
         }.reversed() // Reverse to get newest first
     }
     
+    private fun extractSourcesFromAgentMessage(msg: AgentMessage): Pair<List<RagSource>, List<WebSource>> {
+        val sources = msg.sources ?: return Pair(emptyList(), emptyList())
+        
+        val ragSources = mutableListOf<RagSource>()
+        val webSources = mutableListOf<WebSource>()
+        
+        try {
+            // Convert Map<String, Any> to RagSource
+            sources.ragSources?.forEach { srcMap ->
+                ragSources.add(
+                    RagSource(
+                        id = srcMap["id"]?.toString() ?: "",
+                        slide = srcMap["slide"]?.toString() ?: "",
+                        s3file = srcMap["s3file"]?.toString() ?: "",
+                        start = srcMap["start"]?.toString() ?: "",
+                        end = srcMap["end"]?.toString() ?: "",
+                        text = srcMap["text"]?.toString() ?: ""
+                    )
+                )
+            }
+            
+            // Convert Map<String, Any> to WebSource
+            sources.webSources?.forEach { srcMap ->
+                webSources.add(
+                    WebSource(
+                        id = srcMap["id"]?.toString() ?: "",
+                        title = srcMap["title"]?.toString() ?: "",
+                        url = srcMap["url"]?.toString() ?: "",
+                        text = srcMap["text"]?.toString() ?: ""
+                    )
+                )
+            }
+        } catch (e: Exception) {
+            println("Error extracting sources from agent message: ${e.message}")
+        }
+        
+        return Pair(ragSources, webSources)
+    }
+    
     private fun getSourcesForMessage(
         sourcesKey: String,
         messageId: String
@@ -135,6 +254,7 @@ class ChatMongoDAO(
             if (sourcesJson != null) {
                 val sourcesMap = objectMapper.readValue(sourcesJson, Map::class.java)
                 
+                @Suppress("UNCHECKED_CAST")
                 val ragSources = (sourcesMap["rag_sources"] as? List<Map<String, Any>>)?.map { src ->
                     RagSource(
                         id = src["id"]?.toString() ?: "",
@@ -146,6 +266,7 @@ class ChatMongoDAO(
                     )
                 } ?: emptyList()
                 
+                @Suppress("UNCHECKED_CAST")
                 val webSources = (sourcesMap["web_sources"] as? List<Map<String, Any>>)?.map { src ->
                     WebSource(
                         id = src["id"]?.toString() ?: "",

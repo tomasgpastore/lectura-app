@@ -4,8 +4,8 @@ export interface User {
 }
 
 export interface AuthResponseDTO {
-  accessToken: string;
-  refreshToken: string;
+  csrfToken: string;
+  user: UserResponseDTO;
 }
 
 export interface UserResponseDTO {

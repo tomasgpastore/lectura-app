@@ -34,5 +34,17 @@ data class AgentStateDocument(
 data class AgentMessage(
     val type: String, // "human" or "ai"
     val content: String,
-    val id: String? = null // Make id nullable since it might be missing
+    val id: String? = null, // Make id nullable since it might be missing
+    val sources: MessageSources? = null // Sources embedded in AI messages
+)
+
+@JsonIgnoreProperties(ignoreUnknown = true)
+data class MessageSources(
+    @JsonProperty("message_id")
+    val messageId: String? = null,
+    @JsonProperty("rag_sources")
+    val ragSources: List<Map<String, Any>>? = null,
+    @JsonProperty("web_sources")
+    val webSources: List<Map<String, Any>>? = null,
+    val timestamp: String? = null
 )

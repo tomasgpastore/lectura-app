@@ -9,35 +9,37 @@ import org.springframework.web.bind.annotation.PatchMapping
 import org.springframework.web.bind.annotation.PathVariable
 import org.springframework.web.bind.annotation.PostMapping
 import org.springframework.web.bind.annotation.RequestBody
-import org.springframework.web.bind.annotation.RequestHeader
 import org.springframework.web.bind.annotation.RequestMapping
 import org.springframework.web.bind.annotation.RequestParam
 import org.springframework.web.bind.annotation.RestController
-import staffbase.lectura.auth.JwtService
+import staffbase.lectura.auth.AuthenticationService
 import staffbase.lectura.dto.course.CreateCourseDTO
 import staffbase.lectura.dto.course.PatchCourseDTO
 
 @RestController
 @RequestMapping("/courses")
-class CourseController(val courseServices: CourseService, val jwtService: JwtService){
-
+class CourseController(
+    val courseServices: CourseService, 
+    val authenticationService: AuthenticationService
+){
+    
     @GetMapping
-    fun getAllCoursesForUser(@RequestHeader("Authorization") authHeader: String): ResponseEntity<List<Course>>{
-        val userId = jwtService.extractUserIdFromHeader(authHeader)
+    fun getAllCoursesForUser(): ResponseEntity<List<Course>>{
+        val userId = authenticationService.requireCurrentUserId()
         val courses = courseServices.getAllCoursesForUser(userId)
         return ResponseEntity.ok(courses)
     }
 
     @PostMapping
-    fun createCourseForUser(@RequestHeader("Authorization") authHeader: String, @RequestBody @Valid courseData: CreateCourseDTO): ResponseEntity<Void> {
-        val userId = jwtService.extractUserIdFromHeader(authHeader)
+    fun createCourseForUser(@RequestBody @Valid courseData: CreateCourseDTO): ResponseEntity<Void> {
+        val userId = authenticationService.requireCurrentUserId()
         courseServices.createCourseForUser(userId, courseData)
         return ResponseEntity.status(HttpStatus.CREATED).build()
     }
 
     @GetMapping("/{courseId}")
-    fun getCourseById(@RequestHeader("Authorization") authHeader: String, @PathVariable courseId: String): ResponseEntity<Course> {
-        val userId = jwtService.extractUserIdFromHeader(authHeader)
+    fun getCourseById(@PathVariable courseId: String): ResponseEntity<Course> {
+        val userId = authenticationService.requireCurrentUserId()
         val course = courseServices.getCourseById(userId, courseId)
         return if (course != null) {
             ResponseEntity.ok().body(course)
@@ -47,24 +49,24 @@ class CourseController(val courseServices: CourseService, val jwtService: JwtSer
     }
 
     @DeleteMapping("/{courseId}")
-    fun deleteCourseByIdForUser(@RequestHeader("Authorization") authHeader: String, @PathVariable courseId: String): ResponseEntity<Void> {
-        val userId = jwtService.extractUserIdFromHeader(authHeader)
+    fun deleteCourseByIdForUser(@PathVariable courseId: String): ResponseEntity<Void> {
+        val userId = authenticationService.requireCurrentUserId()
         return if (courseServices.deleteCourseByIdForUser(userId, courseId)){
             ResponseEntity.noContent().build()
         } else { ResponseEntity.notFound().build() }
         }
 
     @PatchMapping("/{courseId}")
-    fun updateCourse(@RequestHeader("Authorization") authHeader: String, @PathVariable courseId: String, @RequestBody patch: PatchCourseDTO): ResponseEntity<Void> {
-        val userId = jwtService.extractUserIdFromHeader(authHeader)
+    fun updateCourse(@PathVariable courseId: String, @RequestBody patch: PatchCourseDTO): ResponseEntity<Void> {
+        val userId = authenticationService.requireCurrentUserId()
         return if (courseServices.updateCourseForUser(userId, courseId, patch)){
             ResponseEntity.noContent().build()
         } else { ResponseEntity.notFound().build() }
     }
 
     @GetMapping(params = ["query"])
-    fun searchCoursesForUser(@RequestHeader("Authorization") authHeader: String, @RequestParam query: String): ResponseEntity<List<Course>> {
-        val userId = jwtService.extractUserIdFromHeader(authHeader)
+    fun searchCoursesForUser(@RequestParam query: String): ResponseEntity<List<Course>> {
+        val userId = authenticationService.requireCurrentUserId()
         val search = courseServices.searchCoursesForUser(userId, query)
         return ResponseEntity.ok(search)
     }

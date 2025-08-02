@@ -26,7 +26,7 @@ interface AuthProviderProps {
 
 export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [isLoading, setIsLoading] = useState(false);
-  const [isAuthenticated, setIsAuthenticated] = useState(!!localStorage.getItem('accessToken'));
+  const [isAuthenticated, setIsAuthenticated] = useState(!!localStorage.getItem('csrfToken'));
 
   const loginWithGoogle = async (credentialResponse: any) => {
     setIsLoading(true);
@@ -34,13 +34,14 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       const idToken = credentialResponse.credential;
 
       // Send ID token to your backend
-      const { accessToken, refreshToken } = await authApi.loginWithGoogle(idToken);
+      const { csrfToken, user } = await authApi.loginWithGoogle(idToken);
       
-      localStorage.setItem('accessToken', accessToken);
+      // Store CSRF token
+      localStorage.setItem('csrfToken', csrfToken);
       
-      // Store refresh token for logout endpoint
-      if (refreshToken) {
-        localStorage.setItem('refreshToken', refreshToken);
+      // Store user info
+      if (user) {
+        localStorage.setItem('user', JSON.stringify(user));
       }
 
       setIsAuthenticated(true);
@@ -54,21 +55,17 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
   const refreshToken = async (): Promise<boolean> => {
     try {
-      const currentRefreshToken = localStorage.getItem('refreshToken');
-      
-      if (!currentRefreshToken) {
-        console.log('No refresh token available');
-        setIsAuthenticated(false);
-        return false;
-      }
-
       console.log('Refreshing access token...');
       
-      const { accessToken, refreshToken: newRefreshToken } = await authApi.refreshToken(currentRefreshToken);
+      const { csrfToken, user } = await authApi.refreshToken();
       
-      // Update stored tokens
-      localStorage.setItem('accessToken', accessToken);
-      localStorage.setItem('refreshToken', newRefreshToken);
+      // Update stored CSRF token
+      localStorage.setItem('csrfToken', csrfToken);
+      
+      // Update user info
+      if (user) {
+        localStorage.setItem('user', JSON.stringify(user));
+      }
 
       setIsAuthenticated(true);
       console.log('Token refreshed successfully');
@@ -85,13 +82,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     try {
       setIsLoading(true);
       
-      const currentRefreshToken = localStorage.getItem('refreshToken');
-      const accessToken = localStorage.getItem('accessToken');
-      
-      if (currentRefreshToken && accessToken) {
-        // Call the backend logout endpoint with refreshToken
-        await authApi.logout(currentRefreshToken, accessToken);
-      }
+      // Call the backend logout endpoint (cookies will be sent automatically)
+      await authApi.logout();
       
       console.log('Logged out successfully');
     } catch (error) {
@@ -101,7 +93,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       // Always clear local state regardless of server response
       setIsAuthenticated(false);
       setIsLoading(false);
-      removeTokens()
+      removeTokens();
       window.location.href = '/login';
     }
   };
@@ -111,4 +103,4 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       {children}
     </AuthContext.Provider>
   );
-}; 
+};
