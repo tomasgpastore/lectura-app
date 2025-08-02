@@ -10,6 +10,9 @@ from typing import List, Dict, Any, Optional
 # LangChain imports
 from langchain_core.tools import tool
 from langchain_community.tools.tavily_search import TavilySearchResults
+from langchain_core.messages import HumanMessage
+from langchain_google_genai import ChatGoogleGenerativeAI
+from pydantic import BaseModel, Field
 
 # Local imports
 from app.pipeline.outbound.agent_state import AgentStateManager
@@ -17,6 +20,27 @@ from app.pipeline.outbound.rag_retrieval import retrieve_similar_chunks_async
 
 # Configure logging
 logger = logging.getLogger(__name__)
+
+
+# Response Schemas
+class ImageAnalysisResponse(BaseModel):
+    """Schema for image analysis responses."""
+    success: bool = Field(description="Whether the analysis was successful")
+    query: str = Field(description="The query that was asked about the image")
+    analysis: Optional[str] = Field(description="The analysis result from the vision model")
+    error: Optional[str] = Field(default=None, description="Error message if analysis failed")
+    
+class CurrentImageResponse(ImageAnalysisResponse):
+    """Response schema for current image analysis."""
+    type: str = Field(default="current", description="Type of image analyzed")
+    description: str = Field(default="Analysis of the current user's image")
+
+class PreviousImageResponse(ImageAnalysisResponse):
+    """Response schema for previous image analysis."""
+    type: str = Field(default="previous", description="Type of image analyzed")
+    message_id: str = Field(description="ID of the message containing the image")
+    timestamp: Optional[str] = Field(default=None, description="Timestamp of the image")
+    description: str = Field(default="Analysis of a previous image")
 
 
 # RAG Search Tool
@@ -198,32 +222,79 @@ def create_retrieve_previous_sources_tool(state_manager: AgentStateManager, user
     return retrieve_previous_sources
 
 
+class VisionAgent:
+    """Simple vision agent for analyzing images."""
+    
+    def __init__(self):
+        google_api_key = os.getenv("GOOGLE_API_KEY")
+        if not google_api_key:
+            raise ValueError("GOOGLE_API_KEY not found in environment")
+        
+        self.llm = ChatGoogleGenerativeAI(
+            model="gemini-2.5-flash",
+            google_api_key=google_api_key,
+            temperature=0.3,
+            max_output_tokens=1024
+        )
+    
+    async def analyze_image(self, query: str, image_base64: str) -> str:
+        """Analyze an image based on a query."""
+        # Create multimodal message
+        message = HumanMessage(content=[
+            {"type": "text", "text": query},
+            {"type": "image_url", "image_url": f"data:image/png;base64,{image_base64}"}
+        ])
+        
+        # Get response from Gemini
+        response = await self.llm.ainvoke([message])
+        return response.content
+
+
 def create_current_user_view_tool(snapshot: Optional[str]):
     """Create a current_user_view tool with bound snapshot."""
     
+    # Create vision agent instance
+    vision_agent = VisionAgent()
+    
     @tool
-    def current_user_view() -> Dict[str, Any]:
+    async def current_user_view(query: str) -> dict:
         """
-        View the current image/screenshot provided by the user.
+        Analyze the user's current image based on a specific query.
+        
+        Args:
+            query: What you want to know about the image (e.g., "What book is shown in this image?")
         
         Returns:
-            Dictionary containing the image data and status
+            Dictionary containing the analysis results
         """
-        logger.info("Accessing current user view")
+        logger.info(f"Accessing current user view with query: {query}")
         
         if not snapshot:
-            return {
-                "success": False,
-                "error": "No snapshot provided in current query",
-                "image": None
-            }
+            return CurrentImageResponse(
+                success=False,
+                query=query,
+                analysis=None,
+                error="No snapshot provided in current query"
+            ).dict()
         
-        return {
-            "success": True,
-            "image": f"data:image/png;base64,{snapshot}",
-            "type": "current",
-            "description": "Current screenshot/image provided by the user"
-        }
+        try:
+            # Use vision agent to analyze the image
+            analysis = await vision_agent.analyze_image(query, snapshot)
+            
+            return CurrentImageResponse(
+                success=True,
+                query=query,
+                analysis=analysis
+            ).dict()
+            
+        except Exception as e:
+            logger.error(f"Error analyzing image: {e}")
+            return CurrentImageResponse(
+                success=False,
+                query=query,
+                analysis=None,
+                error=str(e)
+            ).dict()
     
     return current_user_view
 
@@ -231,58 +302,66 @@ def create_current_user_view_tool(snapshot: Optional[str]):
 def create_previous_user_view_tool(state_manager: AgentStateManager, user_id: str, course_id: str):
     """Create a previous_user_view tool with bound context."""
     
+    # Create vision agent instance
+    vision_agent = VisionAgent()
+    
     @tool
     async def previous_user_view(
-        message_ids: List[str]
-    ) -> Dict[str, Any]:
+        message_id: str,
+        query: str
+    ) -> dict:
         """
-        View images from previous messages in the conversation.
+        Analyze an image from a previous message in the conversation.
         
         Args:
-            message_ids: List of message IDs to retrieve images for
+            message_id: The ID of the message containing the image
+            query: What you want to know about that image
             
         Returns:
-            Dictionary containing previous images
+            Dictionary containing the analysis results
         """
-        logger.info(f"Retrieving previous images for messages: {message_ids}")
+        logger.info(f"Analyzing previous image from message {message_id} with query: {query}")
         
         try:
-            # Retrieve images from state manager
+            # Retrieve the specific image
             images = await state_manager.get_images_for_messages(
                 user_id=user_id,
                 course_id=course_id,
-                message_ids=message_ids
+                message_ids=[message_id]
             )
             
-            if not images:
-                return {
-                    "success": False,
-                    "error": "No images found for specified messages",
-                    "images": []
-                }
+            if not images or message_id not in images:
+                return PreviousImageResponse(
+                    success=False,
+                    query=query,
+                    message_id=message_id,
+                    analysis=None,
+                    error=f"No image found for message ID: {message_id}"
+                ).dict()
             
-            # Format images for display
-            formatted_images = []
-            for message_id, image_data in images.items():
-                formatted_images.append({
-                    "message_id": message_id,
-                    "image": f"data:image/png;base64,{image_data['image']}",
-                    "timestamp": image_data.get("timestamp", ""),
-                    "type": "previous"
-                })
+            # Get the image data
+            image_data = images[message_id]
+            image_base64 = image_data['image']
             
-            return {
-                "success": True,
-                "images": formatted_images,
-                "count": len(formatted_images)
-            }
+            # Use vision agent to analyze the image
+            analysis = await vision_agent.analyze_image(query, image_base64)
+            
+            return PreviousImageResponse(
+                success=True,
+                message_id=message_id,
+                query=query,
+                analysis=analysis,
+                timestamp=image_data.get("timestamp", "")
+            ).dict()
             
         except Exception as e:
-            logger.error(f"Error retrieving previous images: {e}")
-            return {
-                "success": False,
-                "error": str(e),
-                "images": []
-            }
+            logger.error(f"Error analyzing previous image: {e}")
+            return PreviousImageResponse(
+                success=False,
+                query=query,
+                message_id=message_id,
+                analysis=None,
+                error=str(e)
+            ).dict()
     
     return previous_user_view

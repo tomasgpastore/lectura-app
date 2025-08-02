@@ -14,6 +14,11 @@ import staffbase.lectura.dto.ai.ChatResponseDTO
 import java.net.HttpURLConnection
 import com.fasterxml.jackson.databind.ObjectMapper
 import java.net.URI
+import org.springframework.data.redis.core.StringRedisTemplate
+import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.delay
+
+class EmbeddingProcessTimeoutException(message: String) : RuntimeException(message)
 
 data class SlideProcessingRequest(
     @JsonProperty("course_id")
@@ -93,7 +98,8 @@ class EmbeddingProcessingService {
 @Service
 class AiChatService(
     private val chatService: ChatService,
-    private val objectMapper: ObjectMapper
+    private val objectMapper: ObjectMapper,
+    private val redisTemplate: StringRedisTemplate
 ) {
     
     private val baseUrl = System.getenv("AI_MICROSERVICE_URL")
@@ -204,6 +210,11 @@ class AiChatService(
             SearchType.WEB -> "WEB"
             SearchType.RAG_WEB -> "RAG_WEB"
         }
+        
+        // If using RAG or RAG_WEB, wait for any ongoing embedding processes
+        if (searchType == SearchType.RAG || searchType == SearchType.RAG_WEB) {
+            waitForEmbeddingProcesses(userId, courseId)
+        }
 
         // Build the outbound request payload
         val request = ChatOutboundDTO(
@@ -236,5 +247,33 @@ class AiChatService(
         // Deserialize into ChatResponseDTO and return
         // This includes response, ragSources, and webSources
         return objectMapper.readValue(responseJson, ChatResponseDTO::class.java)
+    }
+    
+    private fun waitForEmbeddingProcesses(userId: String, courseId: String) {
+        val pattern = "embedding_process:$userId:$courseId:*"
+        val maxWaitTime = 60_000L // 60 seconds max wait
+        val checkInterval = 500L // Check every 500ms
+        val startTime = System.currentTimeMillis()
+        
+        runBlocking {
+            while (System.currentTimeMillis() - startTime < maxWaitTime) {
+                // Check if any embedding processes are running for this user and course
+                val keys = redisTemplate.keys(pattern)
+                
+                if (keys.isEmpty()) {
+                    // No ongoing processes
+                    println("No ongoing embedding processes for user $userId in course $courseId")
+                    return@runBlocking
+                }
+                
+                println("Found ${keys.size} ongoing embedding processes, waiting...")
+                
+                // Wait before checking again
+                delay(checkInterval)
+            }
+            
+            // If we've reached this point, we've timed out
+            throw EmbeddingProcessTimeoutException("Timeout waiting for embedding processes to complete for user $userId in course $courseId. Please try again later.")
+        }
     }
 }

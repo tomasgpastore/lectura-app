@@ -37,6 +37,8 @@ dependencies {
 	implementation(platform("org.mongodb:mongodb-driver-bom:5.5.1"))
 	implementation("org.mongodb:mongodb-driver-kotlin-coroutine")
 	implementation("org.mongodb:bson-kotlinx")
+	
+	implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.7.3")
 
 
 	implementation("jakarta.validation:jakarta.validation-api:3.0.2")

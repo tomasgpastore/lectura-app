@@ -21,6 +21,7 @@ export interface Document {
   uploadedAt: Date;
   content?: string;
   isLoading?: boolean;
+  uploadProgress?: number; // Progress percentage (0-100)
 }
 
 export interface ChatMessage {
