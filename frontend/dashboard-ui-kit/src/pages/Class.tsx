@@ -9,11 +9,13 @@ import {
   EditDocumentModal,
   DeleteErrorModal
 } from '../components/Class';
+import { IndicatorItem } from '../components/Class/IndicatorsList';
 import { DocumentPreview } from '../components/Class/DocumentPreview';
 import { useDocumentManager } from '../lib/hooks/useDocumentManager';
 import { useChatManager } from '../lib/hooks/useChatManager';
 import { courseApi, slideApi } from '../lib/api/api';
 import { useClassStateStore } from '../stores/classStateStore';
+import { CitationProvider } from '../contexts/CitationContext';
 
 // Memoized components to prevent unnecessary re-renders
 const MemoizedChatContainer = React.memo(ChatContainer);
@@ -82,7 +84,7 @@ export const Class: React.FC = () => {
     .filter(item => item.type === 'document')
     .map(item => item.id);
     
-  const chatManager = useChatManager(id, documentManager.selectedDocument, priorityDocumentIds, storedState?.messages);
+  const chatManager = useChatManager(id, documentManager.selectedDocument, priorityDocumentIds, storedState?.messages, documentManager.currentPage);
 
 
   // Handle opening file from source citation
@@ -135,14 +137,14 @@ export const Class: React.FC = () => {
   };
 
   // Handle form submission with combined text
-  const handleCombinedSubmit = (message: string, isDocsSearchEnabled?: boolean, isWebSearchEnabled?: boolean) => {
+  const handleCombinedSubmit = (message: string, indicatorItems: IndicatorItem[], isDocsSearchEnabled?: boolean, isWebSearchEnabled?: boolean) => {
     // The message already contains the selected text from ChatInput
     // so we don't need to add it again here
     const trimmedMessage = message.trim();
     
     if (trimmedMessage) {
       // Use the new method to send with custom message
-      chatManager.handleSubmitWithMessage(trimmedMessage, isDocsSearchEnabled, isWebSearchEnabled);
+      chatManager.handleSubmitWithMessage(trimmedMessage, indicatorItems, isDocsSearchEnabled, isWebSearchEnabled);
       
       // Clear selected text
       clearSelectedText();
@@ -273,12 +275,13 @@ export const Class: React.FC = () => {
   }
 
   return (
-    <div className="h-screen bg-blue-50 dark:bg-neutral-900 flex flex-col">
-      <Header 
-        courseName={(displayCourse as { name?: string })?.name || 'Loading...'}
-        courseCode={(displayCourse as { code?: string })?.code || ''}
-        lightBlueTheme={true}
-      />
+    <CitationProvider>
+      <div className="h-screen bg-blue-50 dark:bg-neutral-900 flex flex-col">
+        <Header 
+          courseName={(displayCourse as { name?: string })?.name || 'Loading...'}
+          courseCode={(displayCourse as { code?: string })?.code || ''}
+          lightBlueTheme={true}
+        />
 
       <style>
         {`
@@ -559,5 +562,6 @@ export const Class: React.FC = () => {
         errorMessage={documentManager.uploadErrorMessage}
       />
     </div>
+    </CitationProvider>
   );
 }; 

@@ -2,9 +2,9 @@
  * Captures a screenshot of the document preview container using HTML5 Canvas API
  * @param elementId - The ID of the element to capture
  * @param highQuality - Whether to use high quality mode (default: true)
- * @returns Promise<string> - Base64 encoded image string
+ * @returns Promise<Uint8Array | null> - Byte array of the image
  */
-export const captureDocumentSnapshot = async (elementId: string, highQuality: boolean = true): Promise<string | null> => {
+export const captureDocumentSnapshot = async (elementId: string, highQuality: boolean = true): Promise<Uint8Array | null> => {
   try {
     const element = document.getElementById(elementId);
     if (!element) {
@@ -163,21 +163,51 @@ export const captureDocumentSnapshot = async (elementId: string, highQuality: bo
     // Draw the PDF canvas to our output canvas
     ctx.drawImage(targetCanvas, 0, 0);
 
-    // Use high quality PNG for better text recognition, with fallback to compressed JPEG if too large
-    let dataUrl = outputCanvas.toDataURL('image/png');
-    
-    // If PNG is too large (>2MB), fall back to high quality JPEG
-    if (dataUrl.length > 2 * 1024 * 1024) {
-      dataUrl = outputCanvas.toDataURL('image/jpeg', 0.95);
-    }
-    
-    // Log quality info in development
-    if (process.env.NODE_ENV === 'development') {
-      const sizeKB = Math.round(dataUrl.length / 1024);
-      console.log(`📸 Captured snapshot: ${finalWidth}x${finalHeight}, ${sizeKB}KB`);
-    }
-    
-    return dataUrl;
+    // Convert canvas to blob and then to byte array
+    return new Promise((resolve, reject) => {
+      // First try PNG format
+      outputCanvas.toBlob(async (blob) => {
+        if (!blob) {
+          reject(new Error('Failed to create blob from canvas'));
+          return;
+        }
+
+        // Check if PNG is too large (>2MB)
+        if (blob.size > 2 * 1024 * 1024) {
+          // Fall back to high quality JPEG
+          outputCanvas.toBlob(async (jpegBlob) => {
+            if (!jpegBlob) {
+              reject(new Error('Failed to create JPEG blob from canvas'));
+              return;
+            }
+
+            // Convert blob to byte array
+            const arrayBuffer = await jpegBlob.arrayBuffer();
+            const byteArray = new Uint8Array(arrayBuffer);
+            
+            // Log quality info in development
+            if (process.env.NODE_ENV === 'development') {
+              const sizeKB = Math.round(jpegBlob.size / 1024);
+              console.log(`📸 Captured snapshot (JPEG): ${finalWidth}x${finalHeight}, ${sizeKB}KB`);
+            }
+            
+            resolve(byteArray);
+          }, 'image/jpeg', 0.95);
+        } else {
+          // Use PNG if size is acceptable
+          const arrayBuffer = await blob.arrayBuffer();
+          const byteArray = new Uint8Array(arrayBuffer);
+          
+          // Log quality info in development
+          if (process.env.NODE_ENV === 'development') {
+            const sizeKB = Math.round(blob.size / 1024);
+            console.log(`📸 Captured snapshot (PNG): ${finalWidth}x${finalHeight}, ${sizeKB}KB`);
+          }
+          
+          resolve(byteArray);
+        }
+      }, 'image/png');
+    });
   } catch (error) {
     console.error('❌ Failed to capture screenshot:', error);
     return null;
@@ -185,10 +215,15 @@ export const captureDocumentSnapshot = async (elementId: string, highQuality: bo
 };
 
 /**
- * Converts a data URL to base64 string (without the data URL prefix)
- * @param dataUrl - The data URL string
+ * Converts a byte array to base64 string
+ * @param bytes - The byte array
  * @returns string - Base64 encoded string
  */
-export const dataUrlToBase64 = (dataUrl: string): string => {
-  return dataUrl.split(',')[1];
+export const bytesToBase64 = (bytes: Uint8Array): string => {
+  let binary = '';
+  const len = bytes.byteLength;
+  for (let i = 0; i < len; i++) {
+    binary += String.fromCharCode(bytes[i]);
+  }
+  return btoa(binary);
 };

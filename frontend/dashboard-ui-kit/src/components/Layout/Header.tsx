@@ -102,7 +102,7 @@ export const Header: React.FC<HeaderProps> = ({ showAuth = true, courseName, cou
                 {/* User Profile Button */}
                 <button
                   onClick={() => setIsDropdownOpen(!isDropdownOpen)}
-                  className="flex items-center space-x-2 p-2 rounded-xl bg-white/20 dark:bg-neutral-800/20 hover:bg-gray-50 dark:hover:bg-neutral-700 transition-all duration-200 backdrop-blur-sm"
+                  className="flex items-center space-x-2 p-2 rounded-xl hover:bg-gray-50 dark:hover:bg-neutral-700 transition-all duration-200 backdrop-blur-sm"
                 >
                   {user.picture ? (
                     <img
@@ -124,7 +124,7 @@ export const Header: React.FC<HeaderProps> = ({ showAuth = true, courseName, cou
 
                 {/* Dropdown Menu */}
                 {isDropdownOpen && (
-                  <div className="absolute right-0 mt-2 w-56 bg-white dark:bg-neutral-800 rounded-xl shadow-lg border border-gray-200 dark:border-neutral-700 backdrop-blur-xl z-50 py-2">
+                  <div className="absolute right-0 mt-2 w-56 bg-white dark:bg-neutral-800 rounded-xl shadow-lg backdrop-blur-xl z-50 py-2">
                     {/* Email */}
                     <div className="px-2 py-1">
                       <button className="w-full text-left px-3 py-2 rounded-lg hover:bg-gray-50 dark:hover:bg-neutral-700 transition-colors">

@@ -46,8 +46,7 @@ export const ClassCard: React.FC<ClassCardProps> = ({ classData, onClick, onEdit
   return (
     <div
       onClick={onClick}
-      className="group bg-white dark:bg-gray-800 rounded-xl p-6 shadow-sm hover:shadow-lg border border-gray-200 dark:border-gray-700 cursor-pointer transition-all duration-200 hover:scale-105 relative"
-    >
+      className="group bg-white dark:bg-gray-800 rounded-xl p-6 shadow-sm hover:shadow-lg cursor-pointer transition-all duration-200 hover:scale-105 relative shadow-[0_0_15px_rgba(0,0,0,0.2)] dark:shadow-none">
       <div className="flex items-start justify-between mb-4">
         <div className="flex items-center justify-center group-hover:scale-110 transition-transform">
           <img 

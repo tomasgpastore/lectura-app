@@ -25,9 +25,7 @@ from app.pipeline.outbound.agent_state import AgentStateManager
 from app.pipeline.outbound.agent_tools import (
     rag_search_tool,
     web_search_tool,
-    create_retrieve_previous_sources_tool,
-    create_current_user_view_tool,
-    create_previous_user_view_tool
+    create_retrieve_previous_sources_tool
 )
 from dotenv import load_dotenv
 
@@ -72,6 +70,8 @@ class ImageSource(BaseModel):
     type: str  # "current" or "previous"
     message_id: Optional[str] = None  # For previous images
     timestamp: Optional[str] = None
+    slide_id: Optional[str] = None
+    page_number: Optional[int] = None
 
 
 class AgentResponse(BaseModel):
@@ -90,12 +90,14 @@ class GraphState(TypedDict):
     user_id: str
     slides_priority: List[str]
     search_type: SearchType
-    snapshot: Optional[str]
+    snapshot: Optional[Dict[str, Any]]
     rag_sources: List[Dict[str, Any]]
     web_sources: List[Dict[str, Any]]
     image_sources: List[Dict[str, Any]]
     final_response: Optional[str]
     sources_map: Optional[Dict[str, Dict[str, Any]]]
+    rag_counter: int
+    web_counter: int
 
 
 class OutboundAgent:
@@ -122,8 +124,6 @@ class OutboundAgent:
         self.user_id = None
         self.course_id = None
         self.retrieve_previous_sources_tool = None
-        self.current_user_view_tool = None
-        self.previous_user_view_tool = None
     
     def _get_tools_for_search_type(self, search_type: SearchType) -> List:
         """Get the appropriate tools based on search type."""
@@ -139,28 +139,66 @@ class OutboundAgent:
         # Add retrieve_previous_sources if available
         if self.retrieve_previous_sources_tool:
             tools.append(self.retrieve_previous_sources_tool)
-        
-        # Add image tools if available
-        if self.current_user_view_tool:
-            tools.append(self.current_user_view_tool)
-        if self.previous_user_view_tool:
-            tools.append(self.previous_user_view_tool)
             
         return tools
     
-    def _build_graph(self, user_id: str, course_id: str, snapshot: Optional[str] = None) -> StateGraph:
-        """Build the LangGraph workflow with specific user/course context."""
+    def _create_custom_tool_node(self, tools):
+        """Create a custom tool node that maintains source counters."""
+        base_tool_node = ToolNode(tools)
+        
+        async def custom_tool_node(state: GraphState, config: RunnableConfig) -> Dict[str, Any]:
+            # Get current counters from state
+            rag_counter = state.get("rag_counter", 0)
+            web_counter = state.get("web_counter", 0)
+            
+            # Execute the tools normally
+            result = await base_tool_node.ainvoke(state, config)
+            
+            # Process the tool messages to renumber sources
+            messages = result.get("messages", [])
+            for msg in messages:
+                if isinstance(msg, ToolMessage):
+                    try:
+                        if msg.content and isinstance(msg.content, str):
+                            tool_result = json.loads(msg.content)
+                            
+                            # Renumber RAG sources
+                            if msg.name == "rag_search_tool" and tool_result.get("success"):
+                                results = tool_result.get("results", [])
+                                for source in results:
+                                    rag_counter += 1
+                                    source["id"] = str(rag_counter)
+                                logger.info(f"Renumbered RAG sources: {len(results)} sources, IDs {rag_counter - len(results) + 1} to {rag_counter}")
+                            
+                            # Renumber Web sources
+                            elif msg.name == "web_search_tool" and tool_result.get("success"):
+                                results = tool_result.get("results", [])
+                                for source in results:
+                                    web_counter += 1
+                                    source["id"] = str(web_counter)
+                                logger.info(f"Renumbered Web sources: {len(results)} sources, IDs {web_counter - len(results) + 1} to {web_counter}")
+                            
+                            # Update the tool message content with renumbered sources
+                            msg.content = json.dumps(tool_result)
+                            
+                    except Exception as e:
+                        logger.error(f"Error processing tool result for renumbering: {e}")
+            
+            # Return updated messages and counters
+            return {
+                "messages": messages,
+                "rag_counter": rag_counter,
+                "web_counter": web_counter
+            }
+        
+        return custom_tool_node
+    
+    def _build_graph(self, user_id: str, course_id: str, search_type: SearchType, snapshot: Optional[Dict[str, Any]] = None) -> StateGraph:
+        """Build the LangGraph workflow with specific user/course context and search type."""
         # Create the retrieve_previous_sources tool with bound context
         self.user_id = user_id
         self.course_id = course_id
         self.retrieve_previous_sources_tool = create_retrieve_previous_sources_tool(
-            self.state_manager, user_id, course_id
-        )
-        
-        # Create image tools
-        if snapshot:
-            self.current_user_view_tool = create_current_user_view_tool(snapshot)
-        self.previous_user_view_tool = create_previous_user_view_tool(
             self.state_manager, user_id, course_id
         )
         
@@ -169,13 +207,11 @@ class OutboundAgent:
         # Add nodes
         workflow.add_node("agent", self._agent_node)
         
-        # Create tool node with all tools
-        all_tools = [rag_search_tool, web_search_tool, self.retrieve_previous_sources_tool]
-        if self.current_user_view_tool:
-            all_tools.append(self.current_user_view_tool)
-        all_tools.append(self.previous_user_view_tool)
+        # Get tools based on search type to restrict what can be executed
+        allowed_tools = self._get_tools_for_search_type(search_type)
         
-        workflow.add_node("tools", ToolNode(all_tools))
+        # Create custom tool node with state awareness
+        workflow.add_node("tools", self._create_custom_tool_node(allowed_tools))
         workflow.add_node("format_response", self._format_response_node)
         
         # Set entry point
@@ -239,11 +275,19 @@ Course ID: {course_id}"""
         if slides_priority:
             base_prompt += f"\nPriority slides: {', '.join(slides_priority)}"
         
-        # Add image tool information if snapshot is available
+        # Add image information if snapshot is available
         if has_snapshot:
-            base_prompt += "\n\nIMPORTANT: The user has provided an image with their message. To analyze this image, you MUST use the current_user_view tool with a specific query about what you want to know about the image."
-        
-        base_prompt += "\nYou can use previous_user_view to access images from earlier in the conversation if needed."
+            base_prompt += """\n\nIMPORTANT: The user has provided a snapshot of course material with their question. 
+The image has been included in your message for direct analysis.
+
+CITATION RULES FOR IMAGES:
+- You MUST cite [^Page] whenever you reference ANY information from the snapshot
+- Place [^Page] immediately after mentioning content from the image
+- Examples:
+  - "The diagram shows three components [^Page]..."
+  - "According to the formula on the slide [^Page]..."
+  - "The image contains a flowchart [^Page] that illustrates..."
+- ALWAYS cite [^Page] when discussing what you see in the image"""
         
         if search_type == SearchType.DEFAULT:
             return base_prompt + """
@@ -251,11 +295,10 @@ Course ID: {course_id}"""
 Answer the user's question based on your general knowledge. Be helpful and informative.
 
 Available tools:
-- current_user_view: Analyze the user's image with a specific query
-- previous_user_view: Access images from earlier messages
-- retrieve_previous_sources: Access sources from earlier messages
+- retrieve_previous_sources: Access full source content from previous tool calls
 
-If the user asks about an image, use current_user_view with a relevant query to analyze it."""
+IMPORTANT: To save context, tool message content is truncated in the conversation history. 
+You can see which tools were called, but to access the full source content, use retrieve_previous_sources with the tool message IDs."""
         
         elif search_type == SearchType.RAG:
             return base_prompt + """
@@ -266,10 +309,14 @@ Steps:
 2. If new information is needed, create an optimized search query for vector search
 3. Call rag_search_tool with the query
 4. Answer based ONLY on the retrieved information
-5. Cite sources using [^n] format where n is the source number. For multiple sources, use [^n][^m] format where n and m are the source numbers
+5. Cite sources using [^n] format where n is the source number. For multiple sources, use [^n][^m] format where n and m are the source numbers.
 6. Place citations inline, not at the end
+7. If a snapshot was provided, cite it as [^Page] whenever you reference it
 
-Note: You can use retrieve_previous_sources to access sources from earlier messages if needed."""
+IMPORTANT: To save context, tool message content is truncated in the conversation history.
+- You can see which tools were called and how many sources were retrieved
+- To access the full source content from previous queries, use retrieve_previous_sources with the tool message IDs
+- Each tool call has unique source IDs that continue from previous calls (1-10, then 11-20, etc.)"""
         
         elif search_type == SearchType.WEB:
             return base_prompt + """
@@ -279,10 +326,14 @@ Steps:
 1. Create an effective web search query
 2. Call web_search_tool with the query
 3. Answer based on the web results
-4. Cite sources using {^n} format where n is the source number. For multiple sources, use {^n}{^m} format where n and m are the source numbers
+4. Cite sources using {^n} format where n is the source number. For multiple sources, use {^n}{^m} format where n and m are the source numbers.
 5. Place citations inline, not at the end
+6. If a snapshot was provided, cite it as [^Page] whenever you reference it
 
-Note: You can use retrieve_previous_sources to access sources from earlier messages if needed."""
+IMPORTANT: To save context, tool message content is truncated in the conversation history.
+- You can see which tools were called and how many sources were retrieved
+- To access the full source content from previous queries, use retrieve_previous_sources with the tool message IDs
+- Each tool call has unique source IDs that continue from previous calls (1-5, then 6-10, etc.)"""
         
         else:  # RAG_WEB
             return base_prompt + """
@@ -295,12 +346,18 @@ Steps:
 4. Synthesize information from both sources
 5. Cite RAG sources using [^n] and web sources using {^n}. For multiple sources, use [^n][^m] and {^n}{^m} respectively.
 6. Place citations inline, not at the end
+7. If a snapshot was provided, cite it as [^Page] whenever you reference it
 
-Note: You can use retrieve_previous_sources to access sources from earlier messages if needed."""
+IMPORTANT: To save context, tool message content is truncated in the conversation history.
+- You can see which tools were called and how many sources were retrieved
+- To access the full source content from previous queries, use retrieve_previous_sources with the tool message IDs
+- Each tool call maintains unique source IDs (RAG: 1-10, then 11-20; Web: 1-5, then 6-10, etc.)"""
     
     async def _format_response_node(self, state: GraphState, config: RunnableConfig) -> Dict[str, Any]:
         """Format the final response with sources."""
         messages = state["messages"]
+        rag_source_ids = []
+        web_source_ids = []
         rag_sources = []
         web_sources = []
         image_sources = []
@@ -325,6 +382,7 @@ Note: You can use retrieve_previous_sources to access sources from earlier messa
         # This ensures we only get sources from the current query
         start_index = last_human_msg_index if last_human_msg_index >= 0 else 0
         
+        # Collect IDs and sources from tool messages
         for i in range(start_index, len(messages)):
             msg = messages[i]
             if isinstance(msg, ToolMessage):
@@ -336,13 +394,19 @@ Note: You can use retrieve_previous_sources to access sources from earlier messa
                     
                     tool_result = json.loads(msg.content) if isinstance(msg.content, str) else msg.content
                     
-                    # Log the tool result for debugging
-                    logger.debug(f"Tool {msg.name} result: {tool_result}")
+                    # Ensure the tool message has an ID
+                    if not hasattr(msg, 'id') or not msg.id:
+                        msg.id = str(uuid.uuid4())
                     
+                    # Process RAG sources (already have unique IDs from custom tool node)
                     if msg.name == "rag_search_tool" and tool_result.get("success"):
+                        rag_source_ids.append(msg.id)
+                        logger.info(f"Added RAG source tool message ID: {msg.id}")
+                        
+                        # Extract sources - they already have unique IDs
                         for source in tool_result.get("results", []):
                             rag_sources.append(RagSource(
-                                id=source["id"],
+                                id=source["id"],  # Already unique from custom tool node
                                 slide=source["slide"],
                                 s3file=source["s3file"],
                                 start=source["start"],
@@ -350,32 +414,20 @@ Note: You can use retrieve_previous_sources to access sources from earlier messa
                                 text=source["text"]
                             ))
                     
+                    # Process Web sources (already have unique IDs from custom tool node)
                     elif msg.name == "web_search_tool" and tool_result.get("success"):
+                        web_source_ids.append(msg.id)
+                        logger.info(f"Added web source tool message ID: {msg.id}")
+                        
+                        # Extract sources - they already have unique IDs
                         for source in tool_result.get("results", []):
                             web_sources.append(WebSource(
-                                id=source["id"],
+                                id=source["id"],  # Already unique from custom tool node
                                 title=source["title"],
                                 url=source["url"],
                                 text=source["text"]
                             ))
                     
-                    elif msg.name == "current_user_view" and tool_result.get("success"):
-                        # Add current image as a source
-                        image_sources.append(ImageSource(
-                            id="1",
-                            type="current",
-                            message_id=None,
-                            timestamp=None
-                        ))
-                    
-                    elif msg.name == "previous_user_view" and tool_result.get("success"):
-                        # Add previous image as a source
-                        image_sources.append(ImageSource(
-                            id=str(len(image_sources) + 1),
-                            type="previous",
-                            message_id=tool_result.get("message_id"),
-                            timestamp=tool_result.get("timestamp")
-                        ))
                             
                 except json.JSONDecodeError as e:
                     logger.error(f"JSON decode error for tool {getattr(msg, 'name', 'unknown')}: {e}")
@@ -394,24 +446,41 @@ Note: You can use retrieve_previous_sources to access sources from earlier messa
             else:
                 message_id = final_ai_msg.id
         
-        # Store sources data in the state for later saving with the message
+        # Check if snapshot was provided and add as image source
+        if state.get("snapshot"):
+            snapshot = state["snapshot"]
+            image_sources.append(ImageSource(
+                id="page",
+                type="current",
+                message_id=None,
+                timestamp=datetime.now(timezone.utc).isoformat(),
+                slide_id=snapshot.get("slide_id"),
+                page_number=snapshot.get("page_number")
+            ))
+        
+        # Store source message IDs in the state for later saving with the AI message
         sources_data = None
-        if message_id and (rag_sources or web_sources or image_sources):
+        if message_id and (rag_source_ids or web_source_ids or image_sources):
             sources_data = {
                 message_id: {
-                    "message_id": message_id,
-                    "rag_sources": [s.dict() for s in rag_sources],
-                    "web_sources": [s.dict() for s in web_sources],
-                    "image_sources": [s.dict() for s in image_sources],
+                    "rag_source_ids": rag_source_ids,
+                    "web_source_ids": web_source_ids,
                     "timestamp": datetime.now(timezone.utc).isoformat()
                 }
             }
+            # Add image source data if snapshot present
+            if state.get("snapshot") and image_sources:
+                snapshot = state["snapshot"]
+                sources_data[message_id]["s3key"] = snapshot.get("s3key")
+                sources_data[message_id]["slide_id"] = snapshot.get("slide_id")
+                sources_data[message_id]["page_number"] = snapshot.get("page_number")
+            logger.info(f"Sources data prepared for message {message_id}: RAG={len(rag_source_ids)}, Web={len(web_source_ids)}, Image={len(image_sources)}")
         
         return {
             "final_response": final_message,
-            "rag_sources": [s.dict() for s in rag_sources],
-            "web_sources": [s.dict() for s in web_sources],
-            "image_sources": [s.dict() for s in image_sources],
+            "rag_sources": [s.model_dump() for s in rag_sources],
+            "web_sources": [s.model_dump() for s in web_sources],
+            "image_sources": [s.model_dump() for s in image_sources],
             "sources_map": sources_data
         }
     
@@ -422,7 +491,7 @@ Note: You can use retrieve_previous_sources to access sources from earlier messa
         user_prompt: str,
         slides_priority: List[str],
         search_type: SearchType,
-        snapshot: Optional[List[str]] = None
+        snapshot: Optional[Dict[str, Any]] = None
     ) -> AgentResponse:
         """
         Process a user query through the agent.
@@ -440,43 +509,57 @@ Note: You can use retrieve_previous_sources to access sources from earlier messa
         """
         try:
             # Process snapshot
-            snapshot_b64 = None
+            snapshot_data = None
             logger.info(f"Snapshot parameter received: {snapshot is not None}")
-            if snapshot is not None:
-                logger.info(f"Number of snapshots: {len(snapshot)}")
-            if snapshot and len(snapshot) > 0:
-                snapshot_b64 = snapshot[0]
-                logger.info(f"Using snapshot with length: {len(snapshot_b64)}")
+            if snapshot:
+                logger.info(f"Snapshot data: slide_id={snapshot.get('slide_id')}, page={snapshot.get('page_number')}, s3key={snapshot.get('s3key')}")
+                # Generate presigned URL for the snapshot
+                from app.utils.s3_utils import generate_presigned_url
+                presigned_url = generate_presigned_url(snapshot.get('s3key'))
+                if presigned_url:
+                    snapshot_data = {
+                        'slide_id': snapshot.get('slide_id'),
+                        'page_number': snapshot.get('page_number'),
+                        's3key': snapshot.get('s3key'),
+                        'presigned_url': presigned_url
+                    }
+                    logger.info(f"Generated presigned URL for snapshot")
             
-            # Build graph with specific user/course context and snapshot
-            self.graph = self._build_graph(user_id, course_id, snapshot_b64).compile()
+            # Build graph with specific user/course context, search type, and snapshot
+            self.graph = self._build_graph(user_id, course_id, search_type, snapshot_data).compile()
             
             # Get conversation history (will be stripped of images)
             history = await self.state_manager.get_conversation_history(user_id, course_id)
             
-            # Save current image if provided
-            if snapshot_b64:
-                message_id = str(uuid.uuid4())
-                await self.state_manager.save_image(
-                    user_id=user_id,
-                    course_id=course_id,
-                    message_id=message_id,
-                    image=snapshot_b64
-                )
+            # Note: We no longer save images in state manager since they're in S3
+            # The snapshot data contains the S3 reference instead
+            
+            # Build user message with snapshot if available
+            if snapshot_data and snapshot_data.get('presigned_url'):
+                # Create multimodal message with image
+                user_message = HumanMessage(content=[
+                    {"type": "text", "text": user_prompt},
+                    {"type": "image_url", "image_url": snapshot_data['presigned_url']}
+                ])
+                logger.info(f"Created multimodal message with snapshot for slide {snapshot_data.get('slide_id')}, page {snapshot_data.get('page_number')}")
+            else:
+                user_message = HumanMessage(content=user_prompt)
             
             # Build initial state
             initial_state = {
-                "messages": history + [HumanMessage(content=user_prompt)],
+                "messages": history + [user_message],
                 "course_id": course_id,
                 "user_id": user_id,
                 "slides_priority": slides_priority,
                 "search_type": search_type,
-                "snapshot": snapshot_b64,
+                "snapshot": snapshot_data,
                 "rag_sources": [],
                 "web_sources": [],
                 "image_sources": [],
                 "final_response": None,
-                "sources_map": None
+                "sources_map": None,
+                "rag_counter": 0,
+                "web_counter": 0
             }
             
             # Run the graph with recursion limit
@@ -494,7 +577,7 @@ Note: You can use retrieve_previous_sources to access sources from earlier messa
                 final_state.get("sources_map")
             )
             
-            # Build response
+            # Build response with actual sources
             return AgentResponse(
                 response=final_state.get("final_response", ""),
                 rag_sources=[RagSource(**s) for s in final_state.get("rag_sources", [])],
@@ -519,7 +602,7 @@ async def process_agent_query(
     user_prompt: str,
     slides_priority: List[str],
     search_type: str,
-    snapshot: Optional[List[str]] = None
+    snapshot: Optional[Dict[str, Any]] = None
 ) -> Dict[str, Any]:
     """
     Main entry point for processing queries through the agent.

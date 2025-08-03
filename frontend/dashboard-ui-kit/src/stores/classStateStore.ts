@@ -22,6 +22,8 @@ export interface ClassState {
     name: string;
     removable: boolean;
   }>;
+  docsSearchEnabled?: boolean;
+  webSearchEnabled?: boolean;
 }
 
 interface ClassStateStore {

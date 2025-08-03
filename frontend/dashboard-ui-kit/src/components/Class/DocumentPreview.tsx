@@ -91,6 +91,18 @@ export const DocumentPreview = ({ document: doc, onClose, onAddToChat, onSetSele
     setIsInitialLoad(true);
   }, [doc?.id]);
 
+  // Handle external page changes (e.g., from "Open in file" button)
+  useEffect(() => {
+    if (initialPage && jumpToPage && numPages > 0 && !isInitialLoad) {
+      // Only jump to page if it's different from current page
+      if (initialPage !== currentPage && initialPage >= 1 && initialPage <= numPages) {
+        jumpToPage(initialPage - 1); // jumpToPage is 0-indexed
+        setCurrentPage(initialPage);
+        setPageInputValue(initialPage.toString());
+      }
+    }
+  }, [initialPage, jumpToPage, numPages, isInitialLoad]);
+
   // Navigation functions
   const goToPrevPage = () => {
     if (currentPage > 1 && jumpToPage) {
@@ -325,9 +337,9 @@ export const DocumentPreview = ({ document: doc, onClose, onAddToChat, onSetSele
         <div className="flex h-full w-full" style={{ cursor: isResizing ? 'col-resize' : 'default' }}>
           {/* PDF Viewer */}
           <div className="h-full" style={{ width: `${previewWidth}%`, minWidth: '450px' }}>
-            <div className="bg-white dark:bg-neutral-800 dark:border-neutral-700 rounded-xl border flex flex-col h-full max-h-full overflow-hidden">
+            <div className="bg-white dark:bg-neutral-800 rounded-xl flex flex-col h-full max-h-full overflow-hidden">
         {/* Header with controls */}
-      <div className="flex items-center justify-between px-4 py-2 border-b border-gray-200 dark:border-neutral-700 flex-shrink-0">
+      <div className="flex items-center justify-between px-4 py-2 flex-shrink-0">
         <h3 className="text-lg font-semibold text-gray-900 dark:text-white truncate">
           {doc.name}
         </h3>
@@ -557,9 +569,9 @@ export const DocumentPreview = ({ document: doc, onClose, onAddToChat, onSetSele
         
       `}</style>
       
-      <div className="bg-white dark:bg-neutral-800 dark:border-neutral-700 rounded-xl border flex flex-col h-full max-h-full overflow-hidden" style={{ minWidth: '420px' }}>
+      <div className="bg-white dark:bg-neutral-800 rounded-xl flex flex-col h-full max-h-full overflow-hidden" style={{ minWidth: '420px' }}>
         {/* Header with controls */}
-      <div className="flex items-center justify-between px-4 py-2 border-b border-gray-200 dark:border-neutral-700 flex-shrink-0">
+      <div className="flex items-center justify-between px-4 py-2 flex-shrink-0">
         <h3 className="text-lg font-semibold text-gray-900 dark:text-white truncate">
           {doc.name}
         </h3>

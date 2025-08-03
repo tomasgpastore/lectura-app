@@ -10,6 +10,7 @@ from app.pipeline.manager.management_pipeline import delete_vectors_by_metadata,
 from app.pipeline.outbound.outbound_pipeline import (
     OutboundRequest, 
     ChatResponseDTO,
+    SnapshotData,
     process_outbound_pipeline,
     cleanup_outbound_connections
 )
@@ -246,9 +247,9 @@ async def query_llm(request: OutboundRequest):
     logger.info(f"Received outbound request: course_id={request.course_id}, user_id={request.user_id}")
     logger.info(f"Search type: {request.search_type}, Slides: {request.slide_priority}")
     logger.info(f"User query: '{request.user_prompt[:100]}...'")
-    logger.info(f"Snapshots received in controller: {len(request.snapshots) if request.snapshots else 0}")
-    if request.snapshots and len(request.snapshots) > 0:
-        logger.info(f"First snapshot preview: {request.snapshots[0][:50]}...")
+    logger.info(f"Snapshot received in controller: {request.snapshot is not None}")
+    if request.snapshot:
+        logger.info(f"Snapshot data: slide_id={request.snapshot.slide_id}, page={request.snapshot.page_number}, s3key={request.snapshot.s3key}")
     
     # Validate required environment variables
     is_valid, missing_vars = validate_environment()

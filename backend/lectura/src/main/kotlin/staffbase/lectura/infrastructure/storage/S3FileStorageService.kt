@@ -54,6 +54,21 @@ class AwsS3FileStorageService : FileStorageService {
             false
         }
     }
+    
+    override fun storeBytes(bytes: ByteArray, fileName: String, contentType: String): Boolean {
+        return try {
+            val request = PutObjectRequest.builder()
+                .bucket(bucketName)
+                .key(fileName)
+                .contentType(contentType)
+                .build()
+
+            s3Client.putObject(request, RequestBody.fromBytes(bytes))
+            true
+        } catch (e: S3Exception) {
+            false
+        }
+    }
 
     override fun load(fileName: String): ByteArray {
         return try {
@@ -124,6 +139,11 @@ class DummyS3FileStorageService : FileStorageService {
 
     override fun store(file: MultipartFile, fileName: String): Boolean {
         println("[DummyS3] Storing file: $fileName (${file.originalFilename})")
+        return true
+    }
+    
+    override fun storeBytes(bytes: ByteArray, fileName: String, contentType: String): Boolean {
+        println("[DummyS3] Storing bytes: $fileName (${bytes.size} bytes, $contentType)")
         return true
     }
 

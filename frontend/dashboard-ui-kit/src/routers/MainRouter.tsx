@@ -8,7 +8,7 @@ function MainRouter() {
   return (
     <ThemeProvider>
       <AuthProvider>
-        <Router>
+        <Router future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
           <div className="min-h-screen bg-white dark:bg-neutral-900 transition-colors duration-200">
             <AppRoutes />
           </div>

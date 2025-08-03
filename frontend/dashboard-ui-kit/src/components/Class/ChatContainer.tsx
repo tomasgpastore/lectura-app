@@ -19,7 +19,7 @@ interface ChatContainerProps {
   slides?: Array<{ id: string; originalFileName: string }>;
   
   // Chat submission
-  onSubmit: (message: string, isDocsSearchEnabled?: boolean, isWebSearchEnabled?: boolean) => void;
+  onSubmit: (message: string, indicatorItems: IndicatorItem[], isDocsSearchEnabled?: boolean, isWebSearchEnabled?: boolean) => void;
   
   // Optional features
   selectedTextForChat?: string;
@@ -98,8 +98,8 @@ export const ChatContainer = memo<ChatContainerProps>(({
     // Notify parent about indicator items if needed
     onIndicatorItemsChange?.(indicatorItems);
     
-    // Submit the message with search states
-    onSubmit(message, isDocsSearchEnabled, isWebSearchEnabled);
+    // Submit the message with indicator items and search states
+    onSubmit(message, indicatorItems, isDocsSearchEnabled, isWebSearchEnabled);
   }, [onSubmit, onIndicatorItemsChange]);
 
   // Wrap onSubmit for ChatInterface compatibility
@@ -109,7 +109,7 @@ export const ChatContainer = memo<ChatContainerProps>(({
   }, []);
 
   return (
-    <div className="bg-white dark:bg-neutral-800 dark:border-neutral-700 rounded-xl border flex flex-col h-full relative">
+    <div className="bg-white dark:bg-neutral-800 rounded-xl flex flex-col h-full relative">
       {/* Chat Interface - takes full height */}
       <ChatInterface
         messages={messages}

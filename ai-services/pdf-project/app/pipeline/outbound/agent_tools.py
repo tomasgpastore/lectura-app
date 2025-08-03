@@ -1,18 +1,15 @@
 """
 Agent tools for handling various operations including RAG search, web search, 
-image viewing, and source retrieval.
+and source retrieval.
 """
 
 import os
 import logging
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any
 
 # LangChain imports
 from langchain_core.tools import tool
 from langchain_community.tools.tavily_search import TavilySearchResults
-from langchain_core.messages import HumanMessage
-from langchain_google_genai import ChatGoogleGenerativeAI
-from pydantic import BaseModel, Field
 
 # Local imports
 from app.pipeline.outbound.agent_state import AgentStateManager
@@ -22,25 +19,6 @@ from app.pipeline.outbound.rag_retrieval import retrieve_similar_chunks_async
 logger = logging.getLogger(__name__)
 
 
-# Response Schemas
-class ImageAnalysisResponse(BaseModel):
-    """Schema for image analysis responses."""
-    success: bool = Field(description="Whether the analysis was successful")
-    query: str = Field(description="The query that was asked about the image")
-    analysis: Optional[str] = Field(description="The analysis result from the vision model")
-    error: Optional[str] = Field(default=None, description="Error message if analysis failed")
-    
-class CurrentImageResponse(ImageAnalysisResponse):
-    """Response schema for current image analysis."""
-    type: str = Field(default="current", description="Type of image analyzed")
-    description: str = Field(default="Analysis of the current user's image")
-
-class PreviousImageResponse(ImageAnalysisResponse):
-    """Response schema for previous image analysis."""
-    type: str = Field(default="previous", description="Type of image analyzed")
-    message_id: str = Field(description="ID of the message containing the image")
-    timestamp: Optional[str] = Field(default=None, description="Timestamp of the image")
-    description: str = Field(default="Analysis of a previous image")
 
 
 # RAG Search Tool
@@ -165,49 +143,69 @@ def create_retrieve_previous_sources_tool(state_manager: AgentStateManager, user
     
     @tool
     async def retrieve_previous_sources(
-        message_ids: List[str]
+        tool_message_ids: List[str]
     ) -> Dict[str, Any]:
         """
-        Retrieve sources from previous messages in the conversation.
+        Retrieve sources from previous tool calls in the conversation.
         
         Args:
-            message_ids: List of message IDs to retrieve sources for
+            tool_message_ids: List of tool message IDs to retrieve sources for
         
         Returns:
-            Dictionary containing previous sources
+            Dictionary containing the full source content from those tool calls
         """
-        logger.info(f"Retrieving previous sources for messages: {message_ids}")
+        logger.info(f"Retrieving previous sources for tool messages: {tool_message_ids}")
         
         try:
-            # Retrieve sources
-            sources = await state_manager.get_sources_for_messages(
+            # Retrieve full tool messages
+            tool_messages = await state_manager.get_tool_messages(
                 user_id=user_id,
                 course_id=course_id,
-                message_ids=message_ids
+                tool_message_ids=tool_message_ids
             )
             
-            # Flatten and combine all sources
+            # Combine all sources from the tool messages
             all_rag_sources = []
             all_web_sources = []
+            all_image_sources = []
             
-            for message_id, source_data in sources.items():
-                rag_sources = source_data.get("rag_sources", [])
-                web_sources = source_data.get("web_sources", [])
+            for tool_msg_id, tool_data in tool_messages.items():
+                content = tool_data.get("content", {})
+                tool_name = tool_data.get("tool_name")
                 
-                # Add message_id to each source for reference
-                for source in rag_sources:
-                    source["from_message"] = message_id
-                    all_rag_sources.append(source)
-                
-                for source in web_sources:
-                    source["from_message"] = message_id
-                    all_web_sources.append(source)
+                if content.get("success"):
+                    # Extract sources based on tool type
+                    if tool_name == "rag_search_tool":
+                        results = content.get("results", [])
+                        for source in results:
+                            source["from_tool_message"] = tool_msg_id
+                            all_rag_sources.append(source)
+                    
+                    elif tool_name == "web_search_tool":
+                        results = content.get("results", [])
+                        for source in results:
+                            source["from_tool_message"] = tool_msg_id
+                            all_web_sources.append(source)
+                    
+                    elif tool_name in ["current_user_view", "previous_user_view"]:
+                        # Image analysis results
+                        image_info = {
+                            "tool": tool_name,
+                            "from_tool_message": tool_msg_id,
+                            "query": content.get("query"),
+                            "analysis": content.get("analysis"),
+                            "slide_id": content.get("slide_id"),
+                            "page_number": content.get("page_number")
+                        }
+                        all_image_sources.append(image_info)
             
             return {
                 "success": True,
+                "results": all_rag_sources + all_web_sources,  # Maintain backward compatibility
                 "rag_sources": all_rag_sources,
                 "web_sources": all_web_sources,
-                "message_count": len(sources)
+                "image_analyses": all_image_sources,
+                "tool_message_count": len(tool_messages)
             }
             
         except Exception as e:
@@ -215,153 +213,12 @@ def create_retrieve_previous_sources_tool(state_manager: AgentStateManager, user
             return {
                 "success": False,
                 "error": str(e),
+                "results": [],
                 "rag_sources": [],
-                "web_sources": []
+                "web_sources": [],
+                "image_analyses": []
             }
     
     return retrieve_previous_sources
 
 
-class VisionAgent:
-    """Simple vision agent for analyzing images."""
-    
-    def __init__(self):
-        google_api_key = os.getenv("GOOGLE_API_KEY")
-        if not google_api_key:
-            raise ValueError("GOOGLE_API_KEY not found in environment")
-        
-        self.llm = ChatGoogleGenerativeAI(
-            model="gemini-2.5-flash",
-            google_api_key=google_api_key,
-            temperature=0.3,
-            max_output_tokens=1024
-        )
-    
-    async def analyze_image(self, query: str, image_base64: str) -> str:
-        """Analyze an image based on a query."""
-        # Create multimodal message
-        message = HumanMessage(content=[
-            {"type": "text", "text": query},
-            {"type": "image_url", "image_url": f"data:image/png;base64,{image_base64}"}
-        ])
-        
-        # Get response from Gemini
-        response = await self.llm.ainvoke([message])
-        return response.content
-
-
-def create_current_user_view_tool(snapshot: Optional[str]):
-    """Create a current_user_view tool with bound snapshot."""
-    
-    # Create vision agent instance
-    vision_agent = VisionAgent()
-    
-    @tool
-    async def current_user_view(query: str) -> dict:
-        """
-        Analyze the user's current image based on a specific query.
-        
-        Args:
-            query: What you want to know about the image (e.g., "What book is shown in this image?")
-        
-        Returns:
-            Dictionary containing the analysis results
-        """
-        logger.info(f"Accessing current user view with query: {query}")
-        
-        if not snapshot:
-            return CurrentImageResponse(
-                success=False,
-                query=query,
-                analysis=None,
-                error="No snapshot provided in current query"
-            ).dict()
-        
-        try:
-            # Use vision agent to analyze the image
-            analysis = await vision_agent.analyze_image(query, snapshot)
-            
-            return CurrentImageResponse(
-                success=True,
-                query=query,
-                analysis=analysis
-            ).dict()
-            
-        except Exception as e:
-            logger.error(f"Error analyzing image: {e}")
-            return CurrentImageResponse(
-                success=False,
-                query=query,
-                analysis=None,
-                error=str(e)
-            ).dict()
-    
-    return current_user_view
-
-
-def create_previous_user_view_tool(state_manager: AgentStateManager, user_id: str, course_id: str):
-    """Create a previous_user_view tool with bound context."""
-    
-    # Create vision agent instance
-    vision_agent = VisionAgent()
-    
-    @tool
-    async def previous_user_view(
-        message_id: str,
-        query: str
-    ) -> dict:
-        """
-        Analyze an image from a previous message in the conversation.
-        
-        Args:
-            message_id: The ID of the message containing the image
-            query: What you want to know about that image
-            
-        Returns:
-            Dictionary containing the analysis results
-        """
-        logger.info(f"Analyzing previous image from message {message_id} with query: {query}")
-        
-        try:
-            # Retrieve the specific image
-            images = await state_manager.get_images_for_messages(
-                user_id=user_id,
-                course_id=course_id,
-                message_ids=[message_id]
-            )
-            
-            if not images or message_id not in images:
-                return PreviousImageResponse(
-                    success=False,
-                    query=query,
-                    message_id=message_id,
-                    analysis=None,
-                    error=f"No image found for message ID: {message_id}"
-                ).dict()
-            
-            # Get the image data
-            image_data = images[message_id]
-            image_base64 = image_data['image']
-            
-            # Use vision agent to analyze the image
-            analysis = await vision_agent.analyze_image(query, image_base64)
-            
-            return PreviousImageResponse(
-                success=True,
-                message_id=message_id,
-                query=query,
-                analysis=analysis,
-                timestamp=image_data.get("timestamp", "")
-            ).dict()
-            
-        except Exception as e:
-            logger.error(f"Error analyzing previous image: {e}")
-            return PreviousImageResponse(
-                success=False,
-                query=query,
-                message_id=message_id,
-                analysis=None,
-                error=str(e)
-            ).dict()
-    
-    return previous_user_view

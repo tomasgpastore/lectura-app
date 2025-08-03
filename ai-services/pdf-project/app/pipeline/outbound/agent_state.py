@@ -92,9 +92,19 @@ def serialize_message(message: BaseMessage, sources: Optional[Dict[str, Any]] = 
         "tool_call_id": getattr(message, "tool_call_id", None),
     }
     
-    # Add sources for AI messages if provided
+    # Add source references for AI messages if provided
     if isinstance(message, AIMessage) and sources:
-        result["sources"] = sources
+        # Extract just the source IDs from the sources dict
+        result["rag_source_ids"] = sources.get("rag_source_ids", [])
+        result["web_source_ids"] = sources.get("web_source_ids", [])
+        
+        # Store image source as an object if snapshot data is available
+        if sources.get("s3key"):
+            result["image_source"] = {
+                "s3key": sources.get("s3key"),
+                "slide_id": sources.get("slide_id"),
+                "page_number": sources.get("page_number")
+            }
     
     return result
 
@@ -175,6 +185,7 @@ class AgentStateManager:
     ) -> List[BaseMessage]:
         """
         Get conversation history from Redis (if available) or MongoDB.
+        Tool message content is truncated to save context.
         
         Args:
             user_id: User identifier
@@ -182,7 +193,7 @@ class AgentStateManager:
             limit: Maximum number of messages to retrieve
             
         Returns:
-            List of LangChain messages
+            List of LangChain messages (with truncated tool content)
         """
         thread_id = self.get_thread_id(user_id, course_id)
         redis_key = f"{self.redis_prefix}{thread_id}"
@@ -194,7 +205,9 @@ class AgentStateManager:
                 logger.info(f"Retrieved state from Redis for thread: {thread_id}")
                 state_data = json.loads(cached_data)
                 messages_data = state_data.get("messages", [])[-limit:]
-                return [deserialize_message(msg) for msg in messages_data]
+                # Process messages and truncate tool content
+                processed_messages = self._process_messages_for_history(messages_data)
+                return [deserialize_message(msg) for msg in processed_messages]
         except Exception as e:
             logger.warning(f"Error reading from Redis: {e}")
         
@@ -208,9 +221,11 @@ class AgentStateManager:
             if doc and "messages" in doc:
                 logger.info(f"Retrieved state from MongoDB for thread: {thread_id}")
                 messages_data = doc["messages"]
-                messages = [deserialize_message(msg) for msg in messages_data]
+                # Process messages and truncate tool content
+                processed_messages = self._process_messages_for_history(messages_data)
+                messages = [deserialize_message(msg) for msg in processed_messages]
                 
-                # Cache in Redis for next time
+                # Cache in Redis for next time (cache original, not processed)
                 try:
                     self.redis_client.setex(
                         redis_key,
@@ -228,6 +243,61 @@ class AgentStateManager:
         except Exception as e:
             logger.error(f"Error reading from MongoDB: {e}")
             return []
+    
+    def _process_messages_for_history(self, messages_data: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        """
+        Process messages for history, truncating tool message content to save context.
+        
+        Args:
+            messages_data: Raw message data
+            
+        Returns:
+            Processed messages with truncated tool content
+        """
+        processed = []
+        for msg in messages_data:
+            if msg.get("type") == "tool":
+                # Create a copy to avoid modifying the original
+                truncated_msg = msg.copy()
+                # Replace content with a summary
+                tool_name = msg.get("name", "unknown")
+                
+                # Try to extract basic info from content
+                try:
+                    if msg.get("content") and isinstance(msg["content"], str):
+                        content = json.loads(msg["content"])
+                        if content.get("success"):
+                            result_count = len(content.get("results", []))
+                            truncated_msg["content"] = json.dumps({
+                                "success": True,
+                                "tool": tool_name,
+                                "result_count": result_count,
+                                "message": f"Retrieved {result_count} sources. Use retrieve_previous_sources to access full content."
+                            })
+                        else:
+                            truncated_msg["content"] = json.dumps({
+                                "success": False,
+                                "tool": tool_name,
+                                "error": content.get("error", "Unknown error")
+                            })
+                    else:
+                        truncated_msg["content"] = json.dumps({
+                            "tool": tool_name,
+                            "message": "Tool called. Use retrieve_previous_sources to access full content."
+                        })
+                except:
+                    # If parsing fails, just provide basic info
+                    truncated_msg["content"] = json.dumps({
+                        "tool": tool_name,
+                        "message": "Tool called. Use retrieve_previous_sources to access full content."
+                    })
+                
+                processed.append(truncated_msg)
+            else:
+                # Keep other messages as-is
+                processed.append(msg)
+        
+        return processed
     
     async def save_messages(
         self, 
@@ -336,18 +406,60 @@ class AgentStateManager:
         Returns:
             Success status
         """
-        # Get existing messages
-        existing_messages = await self.get_conversation_history(user_id, course_id, limit=50)
+        thread_id = self.get_thread_id(user_id, course_id)
         
-        # Append new messages
-        all_messages = existing_messages + new_messages
+        # Get the existing document with all source information preserved
+        doc = self.mongo_collection.find_one({"thread_id": thread_id})
         
-        # Keep only last 100 messages to prevent unbounded growth
-        if len(all_messages) > 100:
-            all_messages = all_messages[-100:]
-        
-        # Save all messages with sources
-        return await self.save_messages_with_sources(user_id, course_id, all_messages, sources_map)
+        if doc and "messages" in doc:
+            # Create a map of existing message sources by ID
+            existing_sources = {}
+            for msg_data in doc["messages"]:
+                msg_id = msg_data.get("id")
+                if msg_id and msg_data.get("type") == "ai":
+                    # Preserve any existing source IDs and image source
+                    if any([msg_data.get("rag_source_ids"), 
+                           msg_data.get("web_source_ids"), 
+                           msg_data.get("image_source")]):
+                        existing_sources[msg_id] = {
+                            "rag_source_ids": msg_data.get("rag_source_ids", []),
+                            "web_source_ids": msg_data.get("web_source_ids", [])
+                        }
+                        # Preserve image source data if it exists
+                        if msg_data.get("image_source"):
+                            existing_sources[msg_id]["s3key"] = msg_data["image_source"].get("s3key")
+                            existing_sources[msg_id]["slide_id"] = msg_data["image_source"].get("slide_id")
+                            existing_sources[msg_id]["page_number"] = msg_data["image_source"].get("page_number")
+            
+            # Merge existing sources with new sources
+            if sources_map:
+                existing_sources.update(sources_map)
+            
+            # Get existing raw message data (not deserialized) to preserve all fields
+            existing_messages_data = doc.get("messages", [])
+            
+            # Serialize new messages
+            new_messages_serialized = []
+            for msg in new_messages:
+                msg_id = getattr(msg, "id", None)
+                sources = sources_map.get(msg_id) if sources_map and msg_id else None
+                new_messages_serialized.append(serialize_message(msg, sources))
+            
+            # Combine existing and new messages
+            all_messages_data = existing_messages_data + new_messages_serialized
+            
+            # Keep only last 100 messages to prevent unbounded growth
+            if len(all_messages_data) > 100:
+                all_messages_data = all_messages_data[-100:]
+            
+            # Now we need to deserialize for save_messages_with_sources
+            all_messages = [deserialize_message(msg) for msg in all_messages_data]
+            
+            # Save all messages with all sources preserved
+            return await self.save_messages_with_sources(user_id, course_id, all_messages, existing_sources)
+        else:
+            # No existing messages, just save the new ones
+            return await self.save_messages_with_sources(user_id, course_id, new_messages, sources_map)
     
     async def clear_conversation(self, user_id: str, course_id: str) -> bool:
         """
@@ -566,6 +678,55 @@ class AgentStateManager:
         except Exception as e:
             logger.error(f"Error retrieving all sources: {e}")
             return []
+    
+    async def get_tool_messages(
+        self,
+        user_id: str,
+        course_id: str,
+        tool_message_ids: List[str]
+    ) -> Dict[str, Dict[str, Any]]:
+        """
+        Retrieve full content of specific tool messages.
+        
+        Args:
+            user_id: User identifier
+            course_id: Course identifier
+            tool_message_ids: List of tool message IDs to retrieve
+            
+        Returns:
+            Dictionary mapping tool_message_id to full tool content
+        """
+        thread_id = self.get_thread_id(user_id, course_id)
+        tool_messages = {}
+        
+        try:
+            # Get from MongoDB (tool messages are only fully stored there)
+            doc = self.mongo_collection.find_one(
+                {"thread_id": thread_id},
+                {"messages": 1}
+            )
+            
+            if doc and "messages" in doc:
+                # Find requested tool messages
+                for msg in doc["messages"]:
+                    if msg.get("type") == "tool" and msg.get("id") in tool_message_ids:
+                        try:
+                            # Parse the content
+                            content = json.loads(msg.get("content", "{}"))
+                            tool_messages[msg["id"]] = {
+                                "tool_name": msg.get("name"),
+                                "content": content,
+                                "tool_call_id": msg.get("tool_call_id")
+                            }
+                        except:
+                            logger.warning(f"Failed to parse tool message content for {msg.get('id')}")
+                
+                logger.info(f"Retrieved {len(tool_messages)} tool messages for thread {thread_id}")
+            
+        except Exception as e:
+            logger.error(f"Error retrieving tool messages: {e}")
+        
+        return tool_messages
     
     async def save_image(
         self,

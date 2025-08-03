@@ -1,4 +1,5 @@
 import React, { useEffect, useRef } from 'react';
+import { FileText } from 'lucide-react';
 
 interface File {
   id: string;
@@ -55,9 +56,15 @@ export const FileSuggestions: React.FC<FileSuggestionsProps> = ({
                   : 'hover:bg-gray-50 dark:hover:bg-neutral-700 text-gray-700 dark:text-gray-300'
               }`}
             >
-              <img src="/pdf-icon.png" alt="PDF" className="w-4 h-4 flex-shrink-0" />
+              {file.id === 'currentpage' ? (
+                <FileText className="w-4 h-4 flex-shrink-0 text-orange-500" />
+              ) : (
+                <img src="/pdf-icon.png" alt="PDF" className="w-4 h-4 flex-shrink-0" />
+              )}
               <div className="min-w-0">
-                <div className="font-medium text-sm truncate">{file.name}</div>
+                <div className="font-medium text-sm truncate">
+                  {file.id === 'currentpage' ? '@currentpage' : file.name}
+                </div>
                 <div className="text-xs text-gray-500 dark:text-gray-400">{file.type}</div>
               </div>
             </button>
