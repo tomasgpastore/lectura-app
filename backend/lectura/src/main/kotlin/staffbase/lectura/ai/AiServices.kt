@@ -17,6 +17,8 @@ import java.net.URI
 import org.springframework.data.redis.core.StringRedisTemplate
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.delay
+import staffbase.lectura.infrastructure.storage.FileStorageService
+import staffbase.lectura.dto.ai.*
 
 class EmbeddingProcessTimeoutException(message: String) : RuntimeException(message)
 
@@ -99,7 +101,8 @@ class EmbeddingProcessingService {
 class AiChatService(
     private val chatService: ChatService,
     private val objectMapper: ObjectMapper,
-    private val redisTemplate: StringRedisTemplate
+    private val redisTemplate: StringRedisTemplate,
+    private val fileStorageService: FileStorageService
 ) {
     
     private val baseUrl = System.getenv("AI_MICROSERVICE_URL")
@@ -199,9 +202,9 @@ class AiChatService(
         userId: String,
         courseId: String,
         userPrompt: String,
-        snapshots: List<String>,
-        slidePriority: List<String>,
+        priorityDocuments: List<String>,
         searchType: SearchType,
+        snapshotOutbound: SnapshotOutbound? = null
     ): ChatResponseDTO {
         // Convert enum to string
         val searchTypeString = when (searchType) {
@@ -221,9 +224,9 @@ class AiChatService(
             courseId = courseId,
             userId = userId,
             userPrompt = userPrompt,
-            slidePriority = slidePriority,
+            slidePriority = priorityDocuments,
             searchType = searchTypeString,
-            snapshots = snapshots
+            snapshot = snapshotOutbound
         )
 
         // Open and configure the HTTP connection
@@ -245,8 +248,27 @@ class AiChatService(
         val responseJson = connection.inputStream.bufferedReader().use { it.readText() }
 
         // Deserialize into ChatResponseDTO and return
-        // This includes response, ragSources, and webSources
+        // This includes response, ragSources, webSources, and imageSources
         return objectMapper.readValue(responseJson, ChatResponseDTO::class.java)
+    }
+    
+    fun processSnapshotWithImage(
+        snapshot: Snapshot,
+        imageFile: org.springframework.web.multipart.MultipartFile
+    ): SnapshotOutbound {
+        val s3Key = "image/slides/${snapshot.slideId}/page/${snapshot.pageNumber}"
+        
+        // Check if image already exists in S3
+        if (!fileStorageService.exists(s3Key)) {
+            // Store the image file directly
+            fileStorageService.store(imageFile, s3Key)
+        }
+        
+        return SnapshotOutbound(
+            slideId = snapshot.slideId,
+            pageNumber = snapshot.pageNumber,
+            s3key = s3Key
+        )
     }
     
     private fun waitForEmbeddingProcesses(userId: String, courseId: String) {

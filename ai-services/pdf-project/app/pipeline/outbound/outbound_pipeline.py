@@ -14,12 +14,19 @@ logger = logging.getLogger(__name__)
 
 
 # Request/Response Models
+class SnapshotData(BaseModel):
+    """Snapshot data from backend."""
+    slide_id: str = Field(..., description="Slide identifier")
+    page_number: int = Field(..., description="Page number in the slide") 
+    s3key: str = Field(..., description="S3 key for the image")
+
+
 class OutboundRequest(BaseModel):
     """Request model for outbound pipeline matching backend format."""
     user_id: str = Field(..., description="User ID")
     course_id: str = Field(..., description="Course ID")
     user_prompt: str = Field(..., description="User's question")
-    snapshots: List[str] = Field(default_factory=list, description="List of base64 encoded images")
+    snapshot: Optional[SnapshotData] = Field(None, description="Snapshot data with S3 reference")
     slide_priority: List[str] = Field(default_factory=list, description="Slide IDs to prioritize")
     search_type: str = Field(..., description="Search type: DEFAULT, RAG, WEB, or RAG_WEB")
 
@@ -48,6 +55,8 @@ class ImageSource(BaseModel):
     type: str  # "current" or "previous"
     messageId: Optional[str] = None  # For previous images (camelCase for frontend)
     timestamp: Optional[str] = None
+    slideId: Optional[str] = None  # Slide identifier (camelCase for frontend)
+    pageNumber: Optional[int] = None  # Page number (camelCase for frontend)
 
 
 class ChatResponseDTO(BaseModel):
@@ -73,10 +82,9 @@ async def process_outbound_pipeline(request: OutboundRequest) -> ChatResponseDTO
     try:
         logger.info(f"Processing outbound request for user: {request.user_id}, course: {request.course_id}")
         logger.info(f"Search type: {request.search_type}, Slides priority: {request.slide_priority}")
-        logger.info(f"Has snapshots: {len(request.snapshots) > 0}")
-        logger.info(f"Number of snapshots: {len(request.snapshots) if request.snapshots else 0}")
-        if request.snapshots and len(request.snapshots) > 0:
-            logger.info(f"Snapshot data preview: {request.snapshots[0][:50]}...")
+        logger.info(f"Has snapshot: {request.snapshot is not None}")
+        if request.snapshot:
+            logger.info(f"Snapshot data: slide_id={request.snapshot.slide_id}, page={request.snapshot.page_number}, s3key={request.snapshot.s3key}")
         
         # Convert search type to uppercase to match enum
         search_type = request.search_type.upper()
@@ -94,7 +102,7 @@ async def process_outbound_pipeline(request: OutboundRequest) -> ChatResponseDTO
             user_prompt=request.user_prompt,
             slides_priority=request.slide_priority,
             search_type=search_type,
-            snapshot=request.snapshots if request.snapshots else None
+            snapshot=request.snapshot.model_dump() if request.snapshot else None
         )
         
         # Convert result to response format
@@ -106,7 +114,9 @@ async def process_outbound_pipeline(request: OutboundRequest) -> ChatResponseDTO
                 id=source["id"],
                 type=source["type"],
                 messageId=source.get("message_id"),
-                timestamp=source.get("timestamp")
+                timestamp=source.get("timestamp"),
+                slideId=source.get("slide_id"),
+                pageNumber=source.get("page_number")
             ) for source in result.get("image_sources", [])]
         )
         

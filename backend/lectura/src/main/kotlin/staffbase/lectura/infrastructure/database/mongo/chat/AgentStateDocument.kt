@@ -32,10 +32,17 @@ data class AgentStateDocument(
 
 @JsonIgnoreProperties(ignoreUnknown = true)
 data class AgentMessage(
-    val type: String, // "human" or "ai"
+    val type: String, // "human", "ai", or "tool"
     val content: String,
     val id: String? = null, // Make id nullable since it might be missing
-    val sources: MessageSources? = null // Sources embedded in AI messages
+    val name: String? = null, // Tool name for tool messages
+    @JsonProperty("rag_source_ids")
+    val ragSourceIds: List<String>? = null, // References to tool messages with RAG sources
+    @JsonProperty("web_source_ids")
+    val webSourceIds: List<String>? = null, // References to tool messages with web sources
+    @JsonProperty("image_source_ids")
+    val imageSourceIds: List<String>? = null, // References to tool messages with image sources
+    val sources: MessageSources? = null // Legacy: Sources embedded in AI messages
 )
 
 @JsonIgnoreProperties(ignoreUnknown = true)

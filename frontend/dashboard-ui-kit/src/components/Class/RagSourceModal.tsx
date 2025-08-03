@@ -1,16 +1,28 @@
 import React from 'react';
 import ReactDOM from 'react-dom';
-import { ExternalLink } from 'lucide-react';
+import { FileText } from 'lucide-react';
 import { ChatSource } from '../../types';
 
-interface WebSourceModalProps {
+interface RagSourceModalProps {
   source: ChatSource | null;
   isOpen: boolean;
   onClose: () => void;
+  onOpenInFile?: (s3FileName: string, pageStart: number, rawText: string) => void;
+  slides?: Array<{ id: string; originalFileName: string }>;
 }
 
-export const WebSourceModal: React.FC<WebSourceModalProps> = ({ source, isOpen, onClose }) => {
-  if (!isOpen || !source || source.type !== 'web') return null;
+export const RagSourceModal: React.FC<RagSourceModalProps> = ({ 
+  source, 
+  isOpen, 
+  onClose, 
+  onOpenInFile, 
+  slides = [] 
+}) => {
+  if (!isOpen || !source || source.type === 'web') return null;
+
+  // Find the corresponding slide to get the original filename
+  const slide = slides.find(s => s.id === source.slide);
+  const fileName = slide?.originalFileName || "Not Found";
 
   const modalContent = (
     <div 
@@ -25,7 +37,7 @@ export const WebSourceModal: React.FC<WebSourceModalProps> = ({ source, isOpen, 
         <div className="p-4">
           <div className="flex items-center justify-between">
             <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
-              Web Source
+              Document Source
             </h3>
             <button
               onClick={onClose}
@@ -42,20 +54,17 @@ export const WebSourceModal: React.FC<WebSourceModalProps> = ({ source, isOpen, 
           <div className="space-y-4">
             <div className="space-y-3">
               <div>
-                <span className="font-medium text-gray-700 dark:text-gray-300">Title:</span>
-                <p className="mt-1 text-gray-900 dark:text-white">{source.title}</p>
+                <span className="font-medium text-gray-700 dark:text-gray-300">File:</span>
+                <p className="mt-1 text-gray-900 dark:text-white flex items-center gap-2">
+                  <FileText className="w-4 h-4 text-gray-500 dark:text-gray-400" />
+                  {fileName}
+                </p>
               </div>
               <div>
-                <span className="font-medium text-gray-700 dark:text-gray-300">URL:</span>
-                <a 
-                  href={source.url} 
-                  target="_blank" 
-                  rel="noopener noreferrer"
-                  className="mt-1 text-orange-600 hover:text-orange-700 dark:text-orange-400 dark:hover:text-orange-300 flex items-center gap-1"
-                >
-                  {source.url}
-                  <ExternalLink className="w-4 h-4" />
-                </a>
+                <span className="font-medium text-gray-700 dark:text-gray-300">Pages:</span>
+                <p className="mt-1 text-gray-900 dark:text-white">
+                  {source.start === source.end ? source.start : `${source.start}-${source.end}`}
+                </p>
               </div>
               <div>
                 <span className="font-medium text-gray-700 dark:text-gray-300">Content:</span>
@@ -66,15 +75,18 @@ export const WebSourceModal: React.FC<WebSourceModalProps> = ({ source, isOpen, 
             </div>
             
             <div className="flex justify-end pt-4">
-              <a
-                href={source.url}
-                target="_blank"
-                rel="noopener noreferrer"
+              <button
+                onClick={() => {
+                  if (onOpenInFile) {
+                    onOpenInFile(source.s3file, parseInt(source.start), source.text);
+                    onClose();
+                  }
+                }}
                 className="px-4 py-2 bg-orange-600 hover:bg-orange-700 text-white rounded-lg transition-colors font-medium flex items-center gap-2"
               >
-                Open in browser
-                <ExternalLink className="w-4 h-4" />
-              </a>
+                Open in file
+                <FileText className="w-4 h-4" />
+              </button>
             </div>
           </div>
         </div>

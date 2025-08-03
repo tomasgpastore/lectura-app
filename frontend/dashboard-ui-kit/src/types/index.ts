@@ -40,9 +40,10 @@ export interface ChatSource {
   end: string;
   text: string;
   preview_text?: string;
-  type?: 'rag' | 'web'; // Add type to distinguish source types
+  type?: 'rag' | 'web' | 'page'; // Add type to distinguish source types
   title?: string; // For web sources
   url?: string; // For web sources
+  pageNumber?: number; // For page sources
 }
 
 export interface ChatMessageUI {
@@ -95,10 +96,15 @@ export enum SearchType {
   RAG_WEB,
 }
 
+export interface Snapshot {
+  slide_id: string;
+  page_number: number;
+}
+
 export interface ChatFrontDTO {
   courseId: string;
   userPrompt: string;
-  snapshots: string[];
+  snapshot?: Snapshot;
   priorityDocuments: string[];
   searchType: SearchType;
 }
@@ -119,8 +125,18 @@ export interface WebSource {
   text: string;
 }
 
+export interface ImageSource {
+  id: string;
+  type: string;
+  messageId: string | null;
+  timestamp: string;
+  slideId: string;
+  pageNumber: number;
+}
+
 export interface ChatResponseDTO {
   response: string;
   ragSources: RagSource[];
   webSources: WebSource[];
+  imageSources?: ImageSource[];
 }

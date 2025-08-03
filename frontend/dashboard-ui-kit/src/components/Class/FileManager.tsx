@@ -46,11 +46,11 @@ export const FileManager: React.FC<FileManagerProps> = ({
   }, [documents, searchQuery]);
   return (
     <div className={`${isCollapsed ? 'w-39' : 'w-96'} pr-2 pl-2 transition-all duration-200 ease-out will-change-transform`}>
-      <div className="bg-white dark:bg-neutral-800 dark:border-neutral-700 rounded-xl border flex flex-col h-full">
+      <div className="bg-white dark:bg-neutral-800 rounded-xl flex flex-col h-full">
         {!isCollapsed ? (
           <>
             {/* Header */}
-            <div className="flex items-center justify-between px-4 py-2 border-b border-gray-200 dark:border-neutral-700 flex-shrink-0">
+            <div className="flex items-center justify-between px-4 py-2 flex-shrink-0">
               <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Documents</h3>
               <button
                 onClick={onToggleCollapse}
@@ -62,20 +62,17 @@ export const FileManager: React.FC<FileManagerProps> = ({
             </div>
 
             {/* File Upload Section */}
-            <div className="p-6">
+            <div className="px-3">
               <div className="mb-4">
-                <h4 className="text-base font-medium text-gray-900 dark:text-white mb-4">
-                  Upload Documents
-                </h4>
               </div>
               <FileUploadArea onFilesUploaded={onFilesUploaded} />
             </div>
             
             {/* Divider */}
-            <div className="mx-6 border-b border-gray-200 dark:border-neutral-700"></div>
+            <div className="mx-6"></div>
 
             {/* File List Header - Fixed */}
-            <div className="px-6 pt-4 pb-2">
+            <div className="px-3 pt-4 pb-2">
               <div className="flex items-center justify-between mb-4">
                 <span className="text-sm text-gray-500 dark:text-gray-400">
                   {isLoading ? 'Loading...' : `${filteredDocuments.length} of ${documents.length} files`}
@@ -92,14 +89,14 @@ export const FileManager: React.FC<FileManagerProps> = ({
                   value={searchQuery}
                   onChange={(e) => onSearchChange(e.target.value)}
                   placeholder="Search documents..."
-                  className="block w-full pl-10 pr-3 py-2 border border-gray-300 dark:border-neutral-600 rounded-lg text-sm placeholder-gray-500 dark:placeholder-gray-400 bg-white dark:bg-neutral-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+                  className="block w-full pl-10 pr-3 py-2 rounded-lg text-sm placeholder-gray-500 dark:placeholder-gray-400 bg-white dark:bg-neutral-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent shadow-[0_0_15px_rgba(0,0,0,0.2)] dark:shadow-none"
                 />
               </div>
             </div>
 
             {/* File List - Scrollable */}
             <div className="flex-1 overflow-y-auto">
-              <div className="p-6 pt-4">
+              <div className="pt-4">
                 <DocumentList
                   documents={filteredDocuments}
                   isLoading={isLoading}
@@ -114,7 +111,7 @@ export const FileManager: React.FC<FileManagerProps> = ({
           /* Collapsed Sidebar */
           <>
             {/* Header */}
-            <div className="flex items-center justify-center px-4 py-2 border-b border-gray-200 dark:border-neutral-700 flex-shrink-0">
+            <div className="flex items-center justify-center px-4 py-2 flex-shrink-0">
               <button
                 onClick={onToggleCollapse}
                 className="p-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors"

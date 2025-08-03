@@ -14,7 +14,7 @@ interface ConversationGroup {
 interface ChatInterfaceProps {
   messages: ChatMessageUI[];
   isAiLoading: boolean;
-  onSubmit: (e: React.FormEvent) => void;
+  onSubmit?: (e: React.FormEvent) => void;
   onClearChat: () => void;
   streamingMessageIds: Set<string>;
   onOpenInFile?: (s3FileName: string, pageStart: number, rawText: string) => void;
@@ -118,10 +118,36 @@ const ChatInterfaceComponent: React.FC<ChatInterfaceProps> = ({
   const virtualizer = useVirtualizer({
     count: conversationGroups.length,
     getScrollElement: () => messagesContainerRef.current,
-    estimateSize: useCallback(() => {
+    estimateSize: useCallback((index: number) => {
       // Estimate height for each conversation group
-      return 200;
-    }, []),
+      const group = conversationGroups[index];
+      if (!group) return 200;
+      
+      // Estimate based on content length
+      let estimatedHeight = 100; // Base height
+      
+      if (group.userMessage) {
+        // Add height based on user message length
+        estimatedHeight += Math.ceil(group.userMessage.content.length / 50) * 20;
+      }
+      
+      if (group.aiMessage) {
+        // Add height based on AI message length
+        estimatedHeight += Math.ceil(group.aiMessage.content.length / 50) * 20;
+        
+        // Add extra height if message has sources
+        if (group.aiMessage.sources && group.aiMessage.sources.length > 0) {
+          estimatedHeight += 50;
+        }
+      }
+      
+      // Add extra height for the last group (for spacing)
+      if (index === conversationGroups.length - 1) {
+        estimatedHeight += 150;
+      }
+      
+      return Math.min(estimatedHeight, 800); // Cap at reasonable maximum
+    }, [conversationGroups]),
     overscan: 3, // Render 3 extra items on each side
     scrollMargin: 0,
     scrollPaddingStart: 0,
@@ -214,7 +240,7 @@ const ChatInterfaceComponent: React.FC<ChatInterfaceProps> = ({
         }
       `}</style>
       {/* Header with Menu */}
-      <div className="flex items-center justify-between px-4 py-2 border-b border-gray-200 dark:border-neutral-700 flex-shrink-0">
+      <div className="flex items-center justify-between px-4 py-2 flex-shrink-0">
         <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Chat</h3>
         <div className="relative" ref={menuRef}>
           <button
@@ -225,7 +251,7 @@ const ChatInterfaceComponent: React.FC<ChatInterfaceProps> = ({
           </button>
           
           {showMenu && (
-            <div className="absolute right-0 top-full mt-2 w-48 bg-white dark:bg-neutral-800 border border-gray-200 dark:border-neutral-700 rounded-lg shadow-lg z-10">
+            <div className="absolute right-0 top-full mt-2 w-48 bg-white dark:bg-neutral-800 rounded-lg shadow-lg z-10">
               <button
                 onClick={handleClearChat}
                 className="w-full px-4 py-2 text-left text-sm text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-900/20 rounded-lg transition-colors flex items-center"

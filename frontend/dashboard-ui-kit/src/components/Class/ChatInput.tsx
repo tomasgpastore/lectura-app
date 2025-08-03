@@ -116,25 +116,8 @@ export const ChatInput = memo(forwardRef<ChatInputHandle, ChatInputProps>(({
   const setIsDocsSearchEnabled = onDocsSearchEnabledChange || setLocalDocsSearchEnabled;
   const setIsWebSearchEnabled = onWebSearchEnabledChange || setLocalWebSearchEnabled;
   
-  // Handle PDF preview state changes
-  useEffect(() => {
-    setIndicatorItems(prevItems => {
-      // Remove any existing current-page indicator
-      const filtered = prevItems.filter(item => item.type !== 'current-page');
-      
-      if (isPdfPreviewOpen) {
-        // Add current page indicator at the beginning
-        return [{
-          id: 'current-page',
-          type: 'current-page' as const,
-          name: 'Current page',
-          removable: false
-        }, ...filtered];
-      } else {
-        return filtered;
-      }
-    });
-  }, [isPdfPreviewOpen]);
+  // Remove the automatic current page indicator based on PDF preview
+  // Now users must explicitly use @currentpage
 
   // Reset height when clearing
   const resetHeight = useCallback(() => {
@@ -192,9 +175,25 @@ export const ChatInput = memo(forwardRef<ChatInputHandle, ChatInputProps>(({
   });
 
   // Filter files based on input
-  const filteredFiles = files.filter(file => 
+  const baseFiles = files.filter(file => 
     file.name.toLowerCase().includes(fileFilter.toLowerCase())
   );
+  
+  // Add @currentpage option if document preview is open and it matches the filter
+  const filteredFiles = React.useMemo(() => {
+    const result = [...baseFiles];
+    
+    // Add currentpage option if document preview is open
+    if (isPdfPreviewOpen && 'currentpage'.includes(fileFilter.toLowerCase())) {
+      result.unshift({
+        id: 'currentpage',
+        name: 'currentpage',
+        type: 'Current Page Reference'
+      });
+    }
+    
+    return result;
+  }, [baseFiles, isPdfPreviewOpen, fileFilter]);
 
   // Define adjustHeight first to avoid reference errors
   const adjustHeight = useCallback(() => {
@@ -244,18 +243,33 @@ export const ChatInput = memo(forwardRef<ChatInputHandle, ChatInputProps>(({
 
   // Handle file selection
   const selectFile = useCallback((file: FileItem) => {
-    // Add to indicator items if not already there
-    const currentItems = indicatorItems;
-    
-    if (!currentItems.some(item => item.id === file.id)) {
-      const newItem = {
-        id: file.id,
-        type: 'document' as const,
-        name: file.name,
-        removable: true
-      };
-      const newItems = [...currentItems, newItem];
-      setIndicatorItems(newItems);
+    // Handle @currentpage selection
+    if (file.id === 'currentpage') {
+      // Add current page indicator
+      const currentItems = indicatorItems;
+      if (!currentItems.some(item => item.type === 'current-page')) {
+        const newItem = {
+          id: 'current-page',
+          type: 'current-page' as const,
+          name: 'Current page',
+          removable: true
+        };
+        setIndicatorItems([...currentItems, newItem]);
+      }
+    } else {
+      // Add to indicator items if not already there
+      const currentItems = indicatorItems;
+      
+      if (!currentItems.some(item => item.id === file.id)) {
+        const newItem = {
+          id: file.id,
+          type: 'document' as const,
+          name: file.name,
+          removable: true
+        };
+        const newItems = [...currentItems, newItem];
+        setIndicatorItems(newItems);
+      }
     }
     
     // Clear the @ mention from input
@@ -325,15 +339,45 @@ export const ChatInput = memo(forwardRef<ChatInputHandle, ChatInputProps>(({
   // Handle text change
   const handleTextChange = useCallback((e: React.ChangeEvent<HTMLTextAreaElement>) => {
     const value = e.target.value;
+    const previousValue = inputValue;
     setInputValue(value);
     
     // Reset history navigation when user types
     resetHistoryNavigation();
     
+    // Check if user typed @currentpage
+    if (value.includes('@currentpage') && !previousValue.includes('@currentpage')) {
+      // Only allow if document preview is open
+      if (isPdfPreviewOpen) {
+        // Add current page indicator
+        const currentItems = indicatorItems;
+        if (!currentItems.some(item => item.type === 'current-page')) {
+          const newItem = {
+            id: 'current-page',
+            type: 'current-page' as const,
+            name: 'Current page',
+            removable: true
+          };
+          setIndicatorItems([...currentItems, newItem]);
+        }
+      }
+      
+      // Always remove @currentpage from the input
+      const newValue = value.replace('@currentpage', '').trim();
+      setInputValue(newValue);
+      if (textareaRef.current) {
+        textareaRef.current.value = newValue;
+        // Move cursor to the position after removal
+        const cursorPos = value.indexOf('@currentpage');
+        textareaRef.current.setSelectionRange(cursorPos, cursorPos);
+      }
+      return;
+    }
+    
     // Get the current cursor position
     const cursorPosition = e.target.selectionStart;
     handleTextChangeLogic(value, cursorPosition);
-  }, [handleTextChangeLogic, resetHistoryNavigation]);
+  }, [handleTextChangeLogic, resetHistoryNavigation, inputValue, indicatorItems, setIndicatorItems]);
 
   // Use keyboard navigation
   const { handleKeyDown: handleKeyboardNavigation } = useKeyboardNavigation({
@@ -413,6 +457,10 @@ export const ChatInput = memo(forwardRef<ChatInputHandle, ChatInputProps>(({
         textareaRef.current.value = '';
         resetHeight();
       }
+      
+      // Remove current page indicator after sending (it must be re-added with @ each time)
+      const updatedItems = indicatorItems.filter(item => item.type !== 'current-page');
+      setIndicatorItems(updatedItems);
     }
   }, [inputValue, selectedTextForChat, isAiLoading, indicatorItems, onSendMessage, 
       allCommands, executeCommandWithParameter, addToHistory, resetHeight]);
@@ -466,7 +514,7 @@ export const ChatInput = memo(forwardRef<ChatInputHandle, ChatInputProps>(({
       <div className="max-w-4xl mx-auto px-8 pointer-events-auto">
         <form onSubmit={handleFormSubmit} className="w-full">
           <div className="relative">
-            <div className="relative bg-white dark:bg-neutral-700 border border-gray-300 dark:border-neutral-600 rounded-xl focus-within:ring-2 focus-within:ring-orange-500 focus-within:border-orange-500 shadow-lg">
+            <div className="relative bg-white dark:bg-neutral-700 rounded-xl focus-within:ring-2 focus-within:ring-orange-500 focus-within:border-orange-500 shadow-[0_0_15px_rgba(0,0,0,0.2)] dark:shadow-none">
               {showCommands && (
                 <CommandSuggestions
                   commands={filteredCommands}

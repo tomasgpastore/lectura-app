@@ -16,4 +16,5 @@ export { ChatInput } from './ChatInput';
 export type { ChatInputHandle } from './ChatInput';
 export { IndicatorsList } from './IndicatorsList';
 export type { IndicatorItem } from './IndicatorsList';
-export { WebSourceModal } from './WebSourceModal'; 
+export { WebSourceModal } from './WebSourceModal';
+export { RagSourceModal } from './RagSourceModal'; 

@@ -10,7 +10,7 @@ import staffbase.lectura.ai.chat.ChatTurn
 import staffbase.lectura.dao.ChatDAO
 import staffbase.lectura.dto.ai.RagSource
 import staffbase.lectura.dto.ai.WebSource
-import java.util.concurrent.TimeUnit
+import staffbase.lectura.dto.ai.ImageSource
 import java.time.Instant
 
 @Component
@@ -18,17 +18,11 @@ import java.time.Instant
 class ChatMongoDAO(
     private val redisTemplate: StringRedisTemplate,
     private val objectMapper: ObjectMapper,
-    private val chatRepo: ChatMongoRepository,
     private val agentStateRepo: AgentStateRepository
 ) : ChatDAO {
 
-    private val CACHE_TTL_HOURS = 1L // Define TTL as a constant
-
-    private fun key(userId: String, courseId: String): String =
-        "user:$userId:course$courseId:chat"
-
     override fun addMessage(userId: String, courseId: String, chatTurn: ChatTurn) {
-        // No longer saving messages - AI service handles persistence
+        // DO NOT WRITE - AI service handles all message persistence
         // This method is kept for backward compatibility but does nothing
     }
 
@@ -48,15 +42,15 @@ class ChatMongoDAO(
                     convertJsonNodesToChatMessages(messagesNode)
                 } else {
                     println("No messages array found in Redis cache")
-                    fetchFromMongoAndCache(userId, courseId, redisKey, sourcesKey)
+                    fetchFromMongoAndCache(userId, courseId, sourcesKey)
                 }
             } catch (e: Exception) {
                 println("Error parsing cached messages: ${e.message}")
-                fetchFromMongoAndCache(userId, courseId, redisKey, sourcesKey)
+                fetchFromMongoAndCache(userId, courseId, sourcesKey)
             }
         } else {
             // Fetch from MongoDB and cache
-            fetchFromMongoAndCache(userId, courseId, redisKey, sourcesKey)
+            fetchFromMongoAndCache(userId, courseId, sourcesKey)
         }
         
         // Return the requested number of messages (newest first)
@@ -66,7 +60,6 @@ class ChatMongoDAO(
     private fun fetchFromMongoAndCache(
         userId: String, 
         courseId: String, 
-        redisKey: String,
         sourcesKey: String
     ): List<ChatMessage> {
         val threadId = "$userId:$courseId"
@@ -75,15 +68,7 @@ class ChatMongoDAO(
         
         return if (agentState != null) {
             println("Found agent state with ${agentState.messages.size} messages")
-            // Cache only the messages in Redis format
-            try {
-                val messagesOnly = mapOf("messages" to agentState.messages)
-                val stateJson = objectMapper.writeValueAsString(messagesOnly)
-                redisTemplate.opsForValue().set(redisKey, stateJson, 24, TimeUnit.HOURS)
-            } catch (e: Exception) {
-                println("Error caching agent state: ${e.message}")
-            }
-            
+            // DO NOT WRITE - only read from MongoDB
             convertAgentMessagesToChatMessages(agentState.messages, sourcesKey)
         } else {
             println("No agent state found for threadId: $threadId")
@@ -94,36 +79,213 @@ class ChatMongoDAO(
     private fun convertJsonNodesToChatMessages(
         messagesNode: JsonNode
     ): List<ChatMessage> {
+        println("\\nConverting JsonNode messages from cache...")
         val messages = mutableListOf<ChatMessage>()
         
-        messagesNode.forEach { msgNode ->
-            val type = msgNode.get("type")?.asText() ?: return@forEach
-            
-            // Only process human and ai messages
-            if (type == "human" || type == "ai") {
-                val content = msgNode.get("content")?.asText() ?: ""
-                val role = if (type == "human") "user" else "assistant"
-                
-                // Extract sources for AI messages
-                val (ragSources, webSources) = if (type == "ai") {
-                    extractSourcesFromMessage(msgNode)
-                } else {
-                    Pair(emptyList(), emptyList())
+        // Create a map for message lookup
+        val messageMap = mutableMapOf<String, JsonNode>()
+        var toolMessageCount = 0
+        messagesNode.forEach { node ->
+            val id = node.get("id")?.asText()
+            val type = node.get("type")?.asText()
+            if (id != null) {
+                messageMap[id] = node
+                if (type == "tool") {
+                    toolMessageCount++
+                    println("  Tool message in cache: id=$id, name=${node.get("name")?.asText()}")
                 }
-                
-                messages.add(
-                    ChatMessage(
-                        role = role,
-                        content = content,
-                        ragSources = ragSources,
-                        webSources = webSources,
-                        timestamp = Instant.now()
+            }
+        }
+        
+        println("  Total messages in cache: ${messagesNode.size()}")
+        println("  Tool messages in map: $toolMessageCount")
+        println("  Message map size: ${messageMap.size}")
+        
+        messagesNode.forEachIndexed { index, msgNode ->
+            val type = msgNode.get("type")?.asText() ?: return@forEachIndexed
+            
+            when (type) {
+                "human" -> {
+                    messages.add(
+                        ChatMessage(
+                            role = "user",
+                            content = msgNode.get("content")?.asText() ?: "",
+                            ragSources = emptyList(),
+                            webSources = emptyList(),
+                            imageSources = emptyList(),
+                            timestamp = Instant.now()
+                        )
+                    )
+                }
+                "ai" -> {
+                    val content = msgNode.get("content")?.asText() ?: ""
+                    // Skip AI messages with empty content (tool calls)
+                    if (content.isBlank()) {
+                        println("  Skipping AI message #$index with empty content")
+                        return@forEachIndexed
+                    }
+                    
+                    println("\\n  Processing AI message #$index from cache")
+                    // Resolve source references
+                    val (ragSources, webSources, imageSources) = resolveJsonNodeSources(msgNode, messageMap)
+                    
+                    messages.add(
+                        ChatMessage(
+                            role = "assistant",
+                            content = content,
+                            ragSources = ragSources,
+                            webSources = webSources,
+                            imageSources = imageSources,
+                            timestamp = Instant.now()
+                        )
+                    )
+                }
+                // Skip tool messages
+                "tool" -> {
+                    println("  Skipping tool message #$index: id=${msgNode.get("id")?.asText()}")
+                    return@forEachIndexed
+                }
+            }
+        }
+        
+        println("\\n  Converted to ${messages.size} chat messages from cache")
+        return messages.reversed() // Reverse to get newest first
+    }
+    
+    private fun resolveJsonNodeSources(
+        aiNode: JsonNode,
+        messageMap: Map<String, JsonNode>
+    ): Triple<List<RagSource>, List<WebSource>, List<ImageSource>> {
+        val ragSources = mutableListOf<RagSource>()
+        val webSources = mutableListOf<WebSource>()
+        val imageSources = mutableListOf<ImageSource>()
+        
+        val content = aiNode.get("content")?.asText()?.take(50) ?: ""
+        println("Resolving sources for AI JsonNode: content=$content...")
+        
+        // Process RAG source references
+        val ragSourceIds = aiNode.get("rag_source_ids")
+        if (ragSourceIds != null && ragSourceIds.isArray) {
+            println("  Found rag_source_ids: ${ragSourceIds.map { it.asText() }}")
+            ragSourceIds.forEach { idNode ->
+                val sourceId = idNode.asText()
+                val toolNode = messageMap[sourceId]
+                if (toolNode != null) {
+                    println("    Found tool message for RAG source: $sourceId")
+                    val sources = parseJsonToolMessage(toolNode)
+                    ragSources.addAll(sources.first)
+                } else {
+                    println("    Tool message not found for RAG source: $sourceId")
+                }
+            }
+        }
+        
+        // Process Web source references
+        val webSourceIds = aiNode.get("web_source_ids")
+        if (webSourceIds != null && webSourceIds.isArray) {
+            println("  Found web_source_ids: ${webSourceIds.map { it.asText() }}")
+            webSourceIds.forEach { idNode ->
+                val sourceId = idNode.asText()
+                val toolNode = messageMap[sourceId]
+                if (toolNode != null) {
+                    println("    Found tool message for Web source: $sourceId")
+                    val sources = parseJsonToolMessage(toolNode)
+                    webSources.addAll(sources.second)
+                } else {
+                    println("    Tool message not found for Web source: $sourceId")
+                }
+            }
+        }
+        
+        // If no source references found, try legacy embedded sources
+        if (ragSources.isEmpty() && webSources.isEmpty()) {
+            println("  No source references found, trying legacy embedded sources...")
+            val embeddedSources = extractSourcesFromMessage(aiNode)
+            if (embeddedSources.first.isNotEmpty() || embeddedSources.second.isNotEmpty()) {
+                println("    Found embedded sources: RAG=${embeddedSources.first.size}, Web=${embeddedSources.second.size}")
+            }
+            return Triple(embeddedSources.first, embeddedSources.second, emptyList())
+        }
+        
+        // Process image sources (directly embedded in AI message)
+        val imageSourcesNode = aiNode.get("image_sources")
+        if (imageSourcesNode != null && imageSourcesNode.isArray) {
+            println("  Found image_sources in AI message")
+            imageSourcesNode.forEach { src ->
+                imageSources.add(
+                    ImageSource(
+                        id = "page",
+                        type = "current",
+                        messageId = null,
+                        timestamp = null,
+                        slideId = src.get("slide_id")?.asText(),
+                        pageNumber = src.get("page_number")?.asInt()
                     )
                 )
             }
         }
         
-        return messages.reversed() // Reverse to get newest first
+        println("  Final sources: RAG=${ragSources.size}, Web=${webSources.size}, Image=${imageSources.size}")
+        return Triple(ragSources, webSources, imageSources)
+    }
+    
+    private fun parseJsonToolMessage(toolNode: JsonNode): Pair<List<RagSource>, List<WebSource>> {
+        val ragSources = mutableListOf<RagSource>()
+        val webSources = mutableListOf<WebSource>()
+        
+        try {
+            val content = toolNode.get("content")?.asText() ?: return Pair(emptyList(), emptyList())
+            val data = objectMapper.readTree(content)
+            
+            // Check if the tool call was successful
+            val success = data.get("success")?.asBoolean(false) ?: false
+            if (!success) {
+                return Pair(emptyList(), emptyList())
+            }
+            
+            val toolName = toolNode.get("name")?.asText()
+            
+            when (toolName) {
+                "rag_search_tool" -> {
+                    // Parse RAG sources
+                    val results = data.get("results")
+                    if (results != null && results.isArray) {
+                        results.forEach { result ->
+                            ragSources.add(
+                                RagSource(
+                                    id = result.get("id")?.asText() ?: "",
+                                    slide = result.get("slide")?.asText() ?: "",
+                                    s3file = result.get("s3file")?.asText() ?: "",
+                                    start = result.get("start")?.asText() ?: "",
+                                    end = result.get("end")?.asText() ?: "",
+                                    text = result.get("text")?.asText() ?: ""
+                                )
+                            )
+                        }
+                    }
+                }
+                "web_search_tool" -> {
+                    // Parse Web sources
+                    val results = data.get("results")
+                    if (results != null && results.isArray) {
+                        results.forEach { result ->
+                            webSources.add(
+                                WebSource(
+                                    id = result.get("id")?.asText() ?: "",
+                                    title = result.get("title")?.asText() ?: "",
+                                    url = result.get("url")?.asText() ?: "",
+                                    text = result.get("text")?.asText() ?: ""
+                                )
+                            )
+                        }
+                    }
+                }
+            }
+        } catch (e: Exception) {
+            println("Error parsing JSON tool message: ${e.message}")
+        }
+        
+        return Pair(ragSources, webSources)
     }
     
     private fun extractSourcesFromMessage(messageNode: JsonNode): Pair<List<RagSource>, List<WebSource>> {
@@ -173,37 +335,206 @@ class ChatMongoDAO(
         agentMessages: List<AgentMessage>,
         sourcesKey: String
     ): List<ChatMessage> {
-        // Filter for human and ai messages only (exclude "tool" messages)
-        val relevantMessages = agentMessages.filter { it.type == "human" || it.type == "ai" }
+        println("Converting ${agentMessages.size} agent messages to chat messages")
+        println("Message types: ${agentMessages.groupBy { it.type }.mapValues { it.value.size }}")
         
-        // Convert to ChatMessage format and attach sources
-        return relevantMessages.map { msg ->
-            val role = if (msg.type == "human") "user" else "assistant"
-            
-            // Extract sources directly from the message if available
-            val (ragSources, webSources) = if (role == "assistant") {
-                // First try to extract from the message itself (new format)
-                val embeddedSources = extractSourcesFromAgentMessage(msg)
-                if (embeddedSources.first.isNotEmpty() || embeddedSources.second.isNotEmpty()) {
-                    embeddedSources
-                } else if (msg.id != null) {
-                    // Fallback to the old format (sources in separate Redis hash)
-                    getSourcesForMessage(sourcesKey, msg.id)
-                } else {
-                    Pair(emptyList(), emptyList())
+        // Create a map of all messages by ID for quick lookup
+        val messageMap = agentMessages
+            .filter { it.id != null }
+            .associateBy { it.id!! }
+        
+        println("Created message map with ${messageMap.size} entries")
+        
+        val chatMessages = mutableListOf<ChatMessage>()
+        
+        for ((index, msg) in agentMessages.withIndex()) {
+            when (msg.type) {
+                "human" -> {
+                    chatMessages.add(
+                        ChatMessage(
+                            role = "user",
+                            content = msg.content,
+                            ragSources = emptyList(),
+                            webSources = emptyList(),
+                            imageSources = emptyList(),
+                            timestamp = Instant.now()
+                        )
+                    )
                 }
+                "ai" -> {
+                    // Skip AI messages with empty content (tool calls)
+                    if (msg.content.isBlank()) {
+                        println("Skipping AI message #$index with empty content")
+                        continue
+                    }
+                    
+                    println("\nProcessing AI message #$index")
+                    // Process AI message and resolve source references
+                    val (ragSources, webSources, imageSources) = resolveSourceReferences(msg, messageMap, sourcesKey)
+                    
+                    chatMessages.add(
+                        ChatMessage(
+                            role = "assistant",
+                            content = msg.content,
+                            ragSources = ragSources,
+                            webSources = webSources,
+                            imageSources = imageSources,
+                            timestamp = Instant.now()
+                        )
+                    )
+                }
+                // Skip tool messages - they're only used as source references
+                "tool" -> {
+                    println("Found tool message #$index: id=${msg.id}, name=${msg.name}")
+                    continue
+                }
+            }
+        }
+        
+        println("\nConverted to ${chatMessages.size} chat messages")
+        return chatMessages.reversed() // Reverse to get newest first
+    }
+    
+    private fun resolveSourceReferences(
+        aiMessage: AgentMessage,
+        messageMap: Map<String, AgentMessage>,
+        sourcesKey: String
+    ): Triple<List<RagSource>, List<WebSource>, List<ImageSource>> {
+        val ragSources = mutableListOf<RagSource>()
+        val webSources = mutableListOf<WebSource>()
+        val imageSources = mutableListOf<ImageSource>()
+        
+        println("Resolving sources for AI message: id=${aiMessage.id}, content=${aiMessage.content.take(50)}...")
+        println("  ragSourceIds: ${aiMessage.ragSourceIds}")
+        println("  webSourceIds: ${aiMessage.webSourceIds}")
+        
+        // Process RAG source references
+        aiMessage.ragSourceIds?.forEach { sourceId ->
+            println("  Looking up RAG source: $sourceId")
+            val toolMessage = messageMap[sourceId]
+            if (toolMessage != null) {
+                println("    Found tool message: ${toolMessage.name}")
+                val sources = parseToolMessage(toolMessage)
+                ragSources.addAll(sources.first)
             } else {
-                Pair(emptyList(), emptyList())
+                println("    Tool message not found in map")
+            }
+        }
+        
+        // Process Web source references
+        aiMessage.webSourceIds?.forEach { sourceId ->
+            println("  Looking up Web source: $sourceId")
+            val toolMessage = messageMap[sourceId]
+            if (toolMessage != null) {
+                println("    Found tool message: ${toolMessage.name}")
+                val sources = parseToolMessage(toolMessage)
+                webSources.addAll(sources.second)
+            } else {
+                println("    Tool message not found in map")
+            }
+        }
+        
+        // If no source references found, try legacy approaches
+        if (ragSources.isEmpty() && webSources.isEmpty()) {
+            println("  No source references found, trying legacy approaches...")
+            
+            // First try embedded sources (legacy format)
+            val embeddedSources = extractSourcesFromAgentMessage(aiMessage)
+            if (embeddedSources.first.isNotEmpty() || embeddedSources.second.isNotEmpty()) {
+                println("    Found embedded sources: RAG=${embeddedSources.first.size}, Web=${embeddedSources.second.size}")
+                return Triple(embeddedSources.first, embeddedSources.second, emptyList())
             }
             
-            ChatMessage(
-                role = role,
-                content = msg.content,
-                ragSources = ragSources,
-                webSources = webSources,
-                timestamp = Instant.now() // Use current time as messages don't have timestamps
-            )
-        }.reversed() // Reverse to get newest first
+            // Then try Redis hash (old format)
+            if (aiMessage.id != null) {
+                println("    Trying Redis hash for message ID: ${aiMessage.id}")
+                val redisSources = getSourcesForMessage(sourcesKey, aiMessage.id)
+                if (redisSources.first.isNotEmpty() || redisSources.second.isNotEmpty()) {
+                    println("    Found Redis sources: RAG=${redisSources.first.size}, Web=${redisSources.second.size}")
+                }
+                return Triple(redisSources.first, redisSources.second, emptyList())
+            }
+        }
+        
+        // Process image sources from the AI message itself
+        val agentImageSources = aiMessage.sources?.let { sources ->
+            // Check if sources contains image_sources
+            @Suppress("UNCHECKED_CAST")
+            val imageSourcesList = sources.ragSources?.firstOrNull()?.get("image_sources") as? List<Map<String, Any>>
+            imageSourcesList?.map { src ->
+                ImageSource(
+                    id = "page",
+                    type = "current",
+                    messageId = null,
+                    timestamp = null,
+                    slideId = src["slide_id"]?.toString(),
+                    pageNumber = src["page_number"]?.toString()?.toIntOrNull()
+                )
+            }
+        } ?: emptyList()
+        
+        imageSources.addAll(agentImageSources)
+        
+        println("  Final sources: RAG=${ragSources.size}, Web=${webSources.size}, Image=${imageSources.size}")
+        return Triple(ragSources, webSources, imageSources)
+    }
+    
+    private fun parseToolMessage(toolMessage: AgentMessage): Pair<List<RagSource>, List<WebSource>> {
+        val ragSources = mutableListOf<RagSource>()
+        val webSources = mutableListOf<WebSource>()
+        
+        try {
+            // Parse JSON content from tool message
+            val data = objectMapper.readTree(toolMessage.content)
+            
+            // Check if the tool call was successful
+            val success = data.get("success")?.asBoolean(false) ?: false
+            if (!success) {
+                return Pair(emptyList(), emptyList())
+            }
+            
+            when (toolMessage.name) {
+                "rag_search_tool" -> {
+                    // Parse RAG sources
+                    val results = data.get("results")
+                    if (results != null && results.isArray) {
+                        results.forEach { result ->
+                            ragSources.add(
+                                RagSource(
+                                    id = result.get("id")?.asText() ?: "",
+                                    slide = result.get("slide")?.asText() ?: "",
+                                    s3file = result.get("s3file")?.asText() ?: "",
+                                    start = result.get("start")?.asText() ?: "",
+                                    end = result.get("end")?.asText() ?: "",
+                                    text = result.get("text")?.asText() ?: ""
+                                )
+                            )
+                        }
+                    }
+                }
+                "web_search_tool" -> {
+                    // Parse Web sources
+                    val results = data.get("results")
+                    if (results != null && results.isArray) {
+                        results.forEach { result ->
+                            webSources.add(
+                                WebSource(
+                                    id = result.get("id")?.asText() ?: "",
+                                    title = result.get("title")?.asText() ?: "",
+                                    url = result.get("url")?.asText() ?: "",
+                                    text = result.get("text")?.asText() ?: ""
+                                )
+                            )
+                        }
+                    }
+                }
+                // Add other tool types as needed (current_user_view, previous_user_view, etc.)
+            }
+        } catch (e: Exception) {
+            println("Error parsing tool message ${toolMessage.id}: ${e.message}")
+        }
+        
+        return Pair(ragSources, webSources)
     }
     
     private fun extractSourcesFromAgentMessage(msg: AgentMessage): Pair<List<RagSource>, List<WebSource>> {
