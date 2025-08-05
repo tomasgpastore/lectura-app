@@ -42,6 +42,7 @@ class SecurityConfig(
                 it.requestMatchers("/auth/**").permitAll()
                 it.requestMatchers("/health/**").permitAll()
                 it.requestMatchers("/actuator/**").permitAll()
+                it.requestMatchers("/api/subscription/webhook").permitAll()
                   .anyRequest().authenticated()
             }
             .exceptionHandling {

@@ -15,12 +15,16 @@ import org.springframework.web.bind.annotation.RestController
 import staffbase.lectura.auth.AuthenticationService
 import staffbase.lectura.dto.course.CreateCourseDTO
 import staffbase.lectura.dto.course.PatchCourseDTO
+import staffbase.lectura.subscription.SubscriptionLimitService
+import staffbase.lectura.exception.SubscriptionLimitException
+import kotlinx.coroutines.runBlocking
 
 @RestController
 @RequestMapping("/courses")
 class CourseController(
     val courseServices: CourseService, 
-    val authenticationService: AuthenticationService
+    val authenticationService: AuthenticationService,
+    val subscriptionLimitService: SubscriptionLimitService
 ){
     
     @GetMapping
@@ -31,10 +35,22 @@ class CourseController(
     }
 
     @PostMapping
-    fun createCourseForUser(@RequestBody @Valid courseData: CreateCourseDTO): ResponseEntity<Void> {
+    fun createCourseForUser(@RequestBody @Valid courseData: CreateCourseDTO): ResponseEntity<Void> = runBlocking {
         val userId = authenticationService.requireCurrentUserId()
+        
+        // Check subscription limit
+        val limitCheck = subscriptionLimitService.checkCourseCreationLimit(userId)
+        if (!limitCheck.allowed) {
+            throw SubscriptionLimitException(
+                reason = limitCheck.reason ?: "Course creation limit reached",
+                limit = limitCheck.limit,
+                current = limitCheck.current,
+                requiredPlan = limitCheck.requiredPlan
+            )
+        }
+        
         courseServices.createCourseForUser(userId, courseData)
-        return ResponseEntity.status(HttpStatus.CREATED).build()
+        ResponseEntity.status(HttpStatus.CREATED).build()
     }
 
     @GetMapping("/{courseId}")

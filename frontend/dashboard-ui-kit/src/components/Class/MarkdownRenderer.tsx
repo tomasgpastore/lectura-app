@@ -104,14 +104,20 @@ const preprocessMarkdownForCitations = (markdown: string, expandedCitations: Set
     const sourceNum = match[1] || match[2]; // match[1] for [^x], match[2] for {^x}
     const isWebCitation = !!match[2]; // True if it's a {^x} pattern
     
-    // Add text before this citation
-    if (startPos > lastIndex) {
-      // If we have collected citations and now hit text, flush them
+    // Check if there's any text between the last citation and this one
+    const textBetween = fixedMarkdown.slice(lastIndex, startPos);
+    
+    // If there's any non-whitespace text between citations, flush the collected ones
+    if (textBetween.trim().length > 0) {
+      // Flush any collected citations first
       if (consecutiveCitations.length > 0) {
         result += createCitationButtons(consecutiveCitations, citationGroupId++, expandedCitations);
         consecutiveCitations = [];
       }
-      result += fixedMarkdown.slice(lastIndex, startPos);
+      result += textBetween;
+    } else if (startPos > lastIndex) {
+      // Just whitespace between citations, keep it but continue collecting
+      result += textBetween;
     }
     
     // Handle Page citation specially
@@ -210,137 +216,32 @@ export const MarkdownRenderer: React.FC<MarkdownRendererProps> = React.memo(({
   };
 
 
-  // Memoize the processTextForCitations function to prevent recreation
-  const processTextForCitations = useCallback((text: string): React.ReactNode[] => {
-    // First handle cursor marker
+  // Memoize the processTextForCursor function to prevent recreation
+  const processTextForCursor = useCallback((text: string): React.ReactNode[] => {
+    // Only handle cursor marker, not citations (citations are pre-processed)
     const hasCursor = text.includes('⟨CURSOR⟩');
-    const cleanText = text.replace(/⟨CURSOR⟩/g, '');
     
-    // Updated regex to handle both single citations [^1], multiple citations [^1, ^2, ^3], [^Page], and web citations {^1}
-    // Also handles malformed citations like {^1, ^2} or [^1, ^2]
-    const citationRegex = /\[\^([0-9, ^]+|Current Page|Page)\]|\{\^([0-9, ^]+)\}/g;
-    const parts: React.ReactNode[] = [];
-    let lastIndex = 0;
-    let match: RegExpExecArray | null;
-
-    while ((match = citationRegex.exec(cleanText))) {
-      // Add text before citation
-      if (match.index > lastIndex) {
-        parts.push(cleanText.slice(lastIndex, match.index));
+    if (!hasCursor) {
+      return [text];
+    }
+    
+    const parts = text.split('⟨CURSOR⟩');
+    const result: React.ReactNode[] = [];
+    
+    parts.forEach((part, index) => {
+      if (part) {
+        result.push(part);
       }
-
-      // Parse multiple source numbers from the match
-      let sourceNumbersStr = match[1] || match[2]; // match[1] for [^x], match[2] for {^x}
-      const isWebCitation = !!match[2]; // True if it's a {^x} pattern
-      
-      // Clean up malformed citations by removing extra ^ symbols
-      sourceNumbersStr = sourceNumbersStr.replace(/\^/g, '');
-      
-      // Handle [^Page] special case
-      if (sourceNumbersStr === 'Current Page' || sourceNumbersStr === 'Page') {
-        const currentPageButton = (
-          <button
-            key={`citation-current-page-${match!.index}`}
-            className="inline-flex items-center justify-center px-1.5 py-0.5 ml-0.5 mr-0.5 text-xs font-medium bg-orange-100 hover:bg-orange-200 dark:bg-orange-900 dark:hover:bg-orange-800 text-orange-800 dark:text-orange-200 rounded transition-colors cursor-pointer border border-orange-200 dark:border-orange-700"
-            style={{ minHeight: '22px', lineHeight: '1' }}
-            title="Page"
-            onClick={() => handleSourceClick(0, false, true)}
-          >
-            Page
-          </button>
+      // Add cursor after each part except the last
+      if (index < parts.length - 1) {
+        result.push(
+          <span key={`cursor-${index}`} className="inline-block w-0.5 h-4 bg-orange-600 dark:bg-orange-400 animate-pulse ml-0.5" style={{ verticalAlign: 'baseline' }} />
         );
-        parts.push(currentPageButton);
-      } else {
-        const sourceNumbers = sourceNumbersStr.split(',').map(num => parseInt(num.trim())).filter(num => !isNaN(num));
-        const citationGroupKey = `${match!.index}`;
-        const isExpanded = expandedCitations.has(citationGroupKey);
-        
-        if (sourceNumbers.length > 3) {
-          // Show only first 2 sources + ellipsis button when collapsed
-          const visibleSources = isExpanded ? sourceNumbers : sourceNumbers.slice(0, 2);
-          
-          // Create buttons for visible source numbers
-          const citationButtons = visibleSources.map((sourceNumber, index) => (
-            <button
-              key={`citation-${sourceNumber}-${match!.index}-${index}`}
-              onClick={() => handleSourceClick(sourceNumber, isWebCitation)}
-              className={`inline-flex items-center justify-center px-1.5 py-0.5 ml-0.5 mr-0.5 text-xs font-medium ${isWebCitation ? 'bg-blue-100 hover:bg-blue-200 dark:bg-blue-900 dark:hover:bg-blue-800 text-blue-800 dark:text-blue-200 border-blue-200 dark:border-blue-700' : 'bg-orange-100 hover:bg-orange-200 dark:bg-orange-900 dark:hover:bg-orange-800 text-orange-800 dark:text-orange-200 border-orange-200 dark:border-orange-700'} rounded transition-colors cursor-pointer border`}
-              style={{ minHeight: '22px', lineHeight: '1' }}
-              title={`View ${isWebCitation ? 'web' : ''} source ${sourceNumber}`}
-            >
-              {isWebCitation ? (
-                <>
-                  <Globe className="w-3 h-3 mr-1" />
-                  {sourceNumber}
-                </>
-              ) : (
-                <>
-                  <FileText className="w-3 h-3 mr-1" />
-                  {sourceNumber}
-                </>
-              )}
-            </button>
-          ));
-          
-          // Add ellipsis button
-          const ellipsisButton = (
-            <button
-              key={`citation-ellipsis-${match!.index}`}
-              onClick={() => toggleCitation(citationGroupKey)}
-              className="inline-flex items-center justify-center px-1.5 py-0.5 ml-0.5 mr-0.5 text-xs font-medium bg-gray-100 hover:bg-gray-200 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 rounded transition-colors cursor-pointer border border-gray-300 dark:border-gray-600"
-              style={{ minHeight: '22px', lineHeight: '1' }}
-              title={isExpanded ? "Show less" : `Show ${sourceNumbers.length - 2} more`}
-            >
-              {isExpanded ? '><' : '...'}
-            </button>
-          );
-          
-          parts.push(...citationButtons, ellipsisButton);
-        } else {
-          // Show all sources if 3 or fewer
-          const citationButtons = sourceNumbers.map((sourceNumber, index) => (
-            <button
-              key={`citation-${sourceNumber}-${match!.index}-${index}`}
-              onClick={() => handleSourceClick(sourceNumber, isWebCitation)}
-              className={`inline-flex items-center justify-center px-1.5 py-0.5 ml-0.5 mr-0.5 text-xs font-medium ${isWebCitation ? 'bg-blue-100 hover:bg-blue-200 dark:bg-blue-900 dark:hover:bg-blue-800 text-blue-800 dark:text-blue-200 border-blue-200 dark:border-blue-700' : 'bg-orange-100 hover:bg-orange-200 dark:bg-orange-900 dark:hover:bg-orange-800 text-orange-800 dark:text-orange-200 border-orange-200 dark:border-orange-700'} rounded transition-colors cursor-pointer border`}
-              style={{ minHeight: '22px', lineHeight: '1' }}
-              title={`View ${isWebCitation ? 'web' : ''} source ${sourceNumber}`}
-            >
-              {isWebCitation ? (
-                <>
-                  <Globe className="w-3 h-3 mr-1" />
-                  {sourceNumber}
-                </>
-              ) : (
-                <>
-                  <FileText className="w-3 h-3 mr-1" />
-                  {sourceNumber}
-                </>
-              )}
-            </button>
-          ));
-          parts.push(...citationButtons);
-        }
       }
-
-      lastIndex = match.index + match[0].length;
-    }
-
-    // Add remaining text
-    if (lastIndex < cleanText.length) {
-      parts.push(cleanText.slice(lastIndex));
-    }
-
-    // Add cursor at the end if it was in the original text
-    if (hasCursor) {
-      parts.push(
-        <span key="cursor" className="inline-block w-0.5 h-4 bg-orange-600 dark:bg-orange-400 animate-pulse ml-0.5" style={{ verticalAlign: 'baseline' }} />
-      );
-    }
-
-    // If no citations found, return original text as array
-    return parts.length === 0 ? [cleanText] : parts;
-  }, [expandedCitations, handleSourceClick]);
+    });
+    
+    return result;
+  }, []);
 
   // Process content and add cursor at the end if streaming
   const processedContent = useMemo(() => {
@@ -435,7 +336,7 @@ export const MarkdownRenderer: React.FC<MarkdownRendererProps> = React.memo(({
         <p {...rest}>
           {React.Children.map(children, (child) => {
             if (typeof child === 'string') {
-              return processTextForCitations(child);
+              return processTextForCursor(child);
             }
             return child;
           })}
@@ -446,7 +347,7 @@ export const MarkdownRenderer: React.FC<MarkdownRendererProps> = React.memo(({
     text: (props: { children?: unknown }) => {
       const { children } = props;
       if (typeof children === 'string') {
-        return <>{processTextForCitations(children)}</>;
+        return <>{processTextForCursor(children)}</>;
       }
       return <>{children}</>;
     },

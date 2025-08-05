@@ -340,6 +340,13 @@ export const ChatInput = memo(forwardRef<ChatInputHandle, ChatInputProps>(({
   const handleTextChange = useCallback((e: React.ChangeEvent<HTMLTextAreaElement>) => {
     const value = e.target.value;
     const previousValue = inputValue;
+    
+    // Check character limit (4000 characters)
+    if (value.length > 4000) {
+      // Prevent typing beyond limit
+      return;
+    }
+    
     setInputValue(value);
     
     // Reset history navigation when user types
@@ -377,7 +384,7 @@ export const ChatInput = memo(forwardRef<ChatInputHandle, ChatInputProps>(({
     // Get the current cursor position
     const cursorPosition = e.target.selectionStart;
     handleTextChangeLogic(value, cursorPosition);
-  }, [handleTextChangeLogic, resetHistoryNavigation, inputValue, indicatorItems, setIndicatorItems]);
+  }, [handleTextChangeLogic, resetHistoryNavigation, inputValue, indicatorItems, setIndicatorItems, isPdfPreviewOpen]);
 
   // Use keyboard navigation
   const { handleKeyDown: handleKeyboardNavigation } = useKeyboardNavigation({
@@ -571,6 +578,7 @@ export const ChatInput = memo(forwardRef<ChatInputHandle, ChatInputProps>(({
                 placeholder="Ask anything or type  /  for commands"
                 className="w-full px-4 border-0 focus:outline-none bg-transparent text-gray-900 dark:text-white resize-none text-base placeholder:text-base py-1.5 min-h-[60px] max-h-[220px]"
                 rows={2}
+                maxLength={4000}
                 style={{
                   minHeight: '60px',
                   maxHeight: '220px',
@@ -641,17 +649,33 @@ export const ChatInput = memo(forwardRef<ChatInputHandle, ChatInputProps>(({
                   </button>
                 </div>
                 
-                <button
-                  type="submit"
-                  disabled={isAiLoading || (!inputValue.trim() && !selectedTextForChat?.trim())}
-                  className={`p-2 text-white rounded-md transition-all duration-200 disabled:cursor-not-allowed ${
-                    isAiLoading || (!inputValue.trim() && !selectedTextForChat?.trim())
-                      ? 'bg-[#F97316]/40 hover:bg-[#F97316]/40'
-                      : 'bg-[#F97316] hover:bg-[#F97316]/90 active:bg-[#F97316]/80'
-                  }`}
-                >
-                  <ArrowUp className="w-4 h-4" />
-                </button>
+                <div className="flex items-center gap-2">
+                  {/* Character limit warning */}
+                  {inputValue.length >= 3900 && (
+                    <span className={`text-xs font-medium ${
+                      inputValue.length >= 4000 
+                        ? 'text-red-600 dark:text-red-400' 
+                        : 'text-orange-600 dark:text-orange-400'
+                    }`}>
+                      {inputValue.length >= 4000 
+                        ? 'Max length 4k characters' 
+                        : `${4000 - inputValue.length} characters left`
+                      }
+                    </span>
+                  )}
+                  
+                  <button
+                    type="submit"
+                    disabled={isAiLoading || (!inputValue.trim() && !selectedTextForChat?.trim()) || inputValue.length >= 4000}
+                    className={`p-2 text-white rounded-md transition-all duration-200 disabled:cursor-not-allowed ${
+                      isAiLoading || (!inputValue.trim() && !selectedTextForChat?.trim()) || inputValue.length >= 4000
+                        ? 'bg-[#F97316]/40 hover:bg-[#F97316]/40'
+                        : 'bg-[#F97316] hover:bg-[#F97316]/90 active:bg-[#F97316]/80'
+                    }`}
+                  >
+                    <ArrowUp className="w-4 h-4" />
+                  </button>
+                </div>
               </div>
             </div>
           </div>

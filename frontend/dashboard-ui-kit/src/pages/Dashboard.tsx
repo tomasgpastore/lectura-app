@@ -10,14 +10,12 @@ import { EditClassModal } from '../components/Dashboard/EditClassModal';
 import { RemoveClassModal } from '../components/Dashboard/RemoveClassModal';
 import { Course, CreateCourseDTO, PatchCourseDTO } from '../types';
 import { courseApi } from '../lib/api/api';
-import { useAuth } from '../contexts/AuthContext';
 import { useModalManager } from '../utils/dashboard/useModalManager';
 import { createCourse, updateCourse, deleteCourse } from '../utils/dashboard/classOperations';
 import { navigateToClass } from '../utils/dashboard/navigationHelpers';
 
 export const Dashboard: React.FC = () => {
   const navigate = useNavigate();
-  const { isAuthenticated } = useAuth();
   const queryClient = useQueryClient();
   
   // Modal management
@@ -68,25 +66,14 @@ export const Dashboard: React.FC = () => {
       // Close modal immediately
       closeCreateModal();
 
-      // Make API call and get real course data
+      // Make API call
       await createCourse(classData);
       
-      // Refresh to get the real course data with real ID
+      // Refresh the courses list to get the new course
       await queryClient.invalidateQueries({ queryKey: ['courses'] });
       
-      // Get the updated courses and find the newest one
-      const updatedCourses = queryClient.getQueryData(['courses']) as Course[];
-      if (updatedCourses) {
-        // Find the real course (should be the most recent non-optimistic one)
-        const realCourse = updatedCourses
-          .filter(c => !c.id.startsWith('optimistic-'))
-          .sort((a, b) => b.id.localeCompare(a.id))[0]; // Assuming newer IDs are "larger"
-        
-        if (realCourse) {
-          setIsCreatingCourse(false);
-          navigateToClass(navigate, realCourse.id);
-        }
-      }
+      setIsCreatingCourse(false);
+      // Stay on dashboard - user will click the new course card to enter
       
     } catch (error) {
       console.error('Failed to create course:', error);
@@ -249,7 +236,7 @@ export const Dashboard: React.FC = () => {
                   Creating your class...
                 </h3>
                 <p className="text-gray-600 dark:text-gray-400 text-sm">
-                  Setting up your course materials and preparing the workspace
+                  Preparing the workspace
                 </p>
               </div>
             </div>
