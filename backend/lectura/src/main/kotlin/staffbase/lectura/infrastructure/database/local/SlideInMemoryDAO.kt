@@ -34,5 +34,9 @@ class SlideInMemoryDAO : SlideDAO {
     override fun exists(slideId: String): Boolean {
         return DataStore.slides.any { it.id == slideId }
     }
+    
+    override suspend fun countByCourseId(courseId: String): Int {
+        return DataStore.slides.count { it.courseId == courseId }
+    }
 
 }

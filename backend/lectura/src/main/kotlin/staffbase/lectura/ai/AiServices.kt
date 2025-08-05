@@ -206,6 +206,10 @@ class AiChatService(
         searchType: SearchType,
         snapshotOutbound: SnapshotOutbound? = null
     ): ChatResponseDTO {
+        // Validate prompt length (4k characters max)
+        if (userPrompt.length > 4000) {
+            throw IllegalArgumentException("Prompt exceeds maximum length of 4000 characters")
+        }
         // Convert enum to string
         val searchTypeString = when (searchType) {
             SearchType.DEFAULT -> "DEFAULT"

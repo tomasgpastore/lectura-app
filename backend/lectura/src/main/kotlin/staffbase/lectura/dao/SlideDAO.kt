@@ -8,4 +8,5 @@ interface SlideDAO {
     fun update(slideId: String, updated: Slide): Boolean
     fun delete(slideId: String): Boolean
     fun exists(slideId: String): Boolean
+    suspend fun countByCourseId(courseId: String): Int
 }

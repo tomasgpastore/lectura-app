@@ -41,4 +41,8 @@ class SlideMongoDAO(
     override fun exists(slideId: String): Boolean {
         return slideRepo.existsById(slideId)
     }
+    
+    override suspend fun countByCourseId(courseId: String): Int {
+        return slideRepo.countByCourseId(courseId).toInt()
+    }
 }

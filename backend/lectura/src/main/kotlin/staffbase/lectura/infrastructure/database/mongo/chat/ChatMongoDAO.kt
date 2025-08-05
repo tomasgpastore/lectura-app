@@ -162,6 +162,7 @@ class ChatMongoDAO(
         
         val content = aiNode.get("content")?.asText()?.take(50) ?: ""
         println("Resolving sources for AI JsonNode: content=$content...")
+        println("  AI node fields: ${aiNode.fieldNames().asSequence().toList()}")
         
         // Process RAG source references
         val ragSourceIds = aiNode.get("rag_source_ids")
@@ -197,31 +198,54 @@ class ChatMongoDAO(
             }
         }
         
+        // Process Image source references
+        val imageSourceIds = aiNode.get("image_source_ids")
+        if (imageSourceIds != null && imageSourceIds.isArray) {
+            println("  Found image_source_ids: ${imageSourceIds.map { it.asText() }}")
+            imageSourceIds.forEach { idNode ->
+                val sourceId = idNode.asText()
+                val toolNode = messageMap[sourceId]
+                if (toolNode != null) {
+                    println("    Found tool message for Image source: $sourceId")
+                    val imageData = parseJsonImageToolMessage(toolNode)
+                    if (imageData != null) {
+                        imageSources.add(imageData)
+                    }
+                } else {
+                    println("    Tool message not found for Image source: $sourceId")
+                }
+            }
+        }
+        
         // If no source references found, try legacy embedded sources
         if (ragSources.isEmpty() && webSources.isEmpty()) {
             println("  No source references found, trying legacy embedded sources...")
             val embeddedSources = extractSourcesFromMessage(aiNode)
             if (embeddedSources.first.isNotEmpty() || embeddedSources.second.isNotEmpty()) {
                 println("    Found embedded sources: RAG=${embeddedSources.first.size}, Web=${embeddedSources.second.size}")
+                ragSources.addAll(embeddedSources.first)
+                webSources.addAll(embeddedSources.second)
             }
-            return Triple(embeddedSources.first, embeddedSources.second, emptyList())
         }
         
-        // Process image sources (directly embedded in AI message)
-        val imageSourcesNode = aiNode.get("image_sources")
-        if (imageSourcesNode != null && imageSourcesNode.isArray) {
-            println("  Found image_sources in AI message")
-            imageSourcesNode.forEach { src ->
+        // Process image source (directly embedded in AI message - singular)
+        val imageSourceNode = aiNode.get("image_source")
+        if (imageSourceNode != null && imageSourceNode.isObject) {
+            println("  Found image_source in AI message")
+            try {
                 imageSources.add(
                     ImageSource(
                         id = "page",
                         type = "current",
                         messageId = null,
                         timestamp = null,
-                        slideId = src.get("slide_id")?.asText(),
-                        pageNumber = src.get("page_number")?.asInt()
+                        slideId = imageSourceNode.get("slide_id")?.asText(),
+                        pageNumber = imageSourceNode.get("page_number")?.asInt()
                     )
                 )
+                println("    Added image source: slideId=${imageSourceNode.get("slide_id")?.asText()}, pageNumber=${imageSourceNode.get("page_number")?.asInt()}")
+            } catch (e: Exception) {
+                println("    Error parsing image source: ${e.message}")
             }
         }
         
@@ -286,6 +310,42 @@ class ChatMongoDAO(
         }
         
         return Pair(ragSources, webSources)
+    }
+    
+    private fun parseJsonImageToolMessage(toolNode: JsonNode): ImageSource? {
+        try {
+            val content = toolNode.get("content")?.asText() ?: return null
+            val data = objectMapper.readTree(content)
+            
+            // Check if the tool call was successful
+            val success = data.get("success")?.asBoolean(false) ?: false
+            if (!success) {
+                return null
+            }
+            
+            val toolName = toolNode.get("name")?.asText()
+            
+            when (toolName) {
+                "current_user_view", "previous_user_view" -> {
+                    // Parse image source data
+                    val slideId = data.get("slide_id")?.asText()
+                    val pageNumber = data.get("page_number")?.asInt()
+                    
+                    return ImageSource(
+                        id = "page",
+                        type = if (toolName == "current_user_view") "current" else "previous",
+                        messageId = null,
+                        timestamp = null,
+                        slideId = slideId,
+                        pageNumber = pageNumber
+                    )
+                }
+            }
+        } catch (e: Exception) {
+            println("Error parsing JSON image tool message: ${e.message}")
+        }
+        
+        return null
     }
     
     private fun extractSourcesFromMessage(messageNode: JsonNode): Pair<List<RagSource>, List<WebSource>> {
@@ -407,6 +467,8 @@ class ChatMongoDAO(
         println("Resolving sources for AI message: id=${aiMessage.id}, content=${aiMessage.content.take(50)}...")
         println("  ragSourceIds: ${aiMessage.ragSourceIds}")
         println("  webSourceIds: ${aiMessage.webSourceIds}")
+        println("  imageSourceIds: ${aiMessage.imageSourceIds}")
+        println("  imageSource (direct): ${aiMessage.imageSource}")
         
         // Process RAG source references
         aiMessage.ragSourceIds?.forEach { sourceId ->
@@ -434,6 +496,21 @@ class ChatMongoDAO(
             }
         }
         
+        // Process Image source references
+        aiMessage.imageSourceIds?.forEach { sourceId ->
+            println("  Looking up Image source: $sourceId")
+            val toolMessage = messageMap[sourceId]
+            if (toolMessage != null) {
+                println("    Found tool message for image: ${toolMessage.name}")
+                val imageData = parseImageToolMessage(toolMessage)
+                if (imageData != null) {
+                    imageSources.add(imageData)
+                }
+            } else {
+                println("    Tool message not found for image source: $sourceId")
+            }
+        }
+        
         // If no source references found, try legacy approaches
         if (ragSources.isEmpty() && webSources.isEmpty()) {
             println("  No source references found, trying legacy approaches...")
@@ -442,38 +519,40 @@ class ChatMongoDAO(
             val embeddedSources = extractSourcesFromAgentMessage(aiMessage)
             if (embeddedSources.first.isNotEmpty() || embeddedSources.second.isNotEmpty()) {
                 println("    Found embedded sources: RAG=${embeddedSources.first.size}, Web=${embeddedSources.second.size}")
-                return Triple(embeddedSources.first, embeddedSources.second, emptyList())
+                ragSources.addAll(embeddedSources.first)
+                webSources.addAll(embeddedSources.second)
             }
             
             // Then try Redis hash (old format)
-            if (aiMessage.id != null) {
+            if (ragSources.isEmpty() && webSources.isEmpty() && aiMessage.id != null) {
                 println("    Trying Redis hash for message ID: ${aiMessage.id}")
                 val redisSources = getSourcesForMessage(sourcesKey, aiMessage.id)
                 if (redisSources.first.isNotEmpty() || redisSources.second.isNotEmpty()) {
                     println("    Found Redis sources: RAG=${redisSources.first.size}, Web=${redisSources.second.size}")
+                    ragSources.addAll(redisSources.first)
+                    webSources.addAll(redisSources.second)
                 }
-                return Triple(redisSources.first, redisSources.second, emptyList())
             }
         }
         
-        // Process image sources from the AI message itself
-        val agentImageSources = aiMessage.sources?.let { sources ->
-            // Check if sources contains image_sources
-            @Suppress("UNCHECKED_CAST")
-            val imageSourcesList = sources.ragSources?.firstOrNull()?.get("image_sources") as? List<Map<String, Any>>
-            imageSourcesList?.map { src ->
-                ImageSource(
+        // Also check for direct image_source field in the AI message (singular)
+        aiMessage.imageSource?.let { imageMap ->
+            println("  Found direct image_source in AI message")
+            try {
+                val imageSource = ImageSource(
                     id = "page",
                     type = "current",
                     messageId = null,
                     timestamp = null,
-                    slideId = src["slide_id"]?.toString(),
-                    pageNumber = src["page_number"]?.toString()?.toIntOrNull()
+                    slideId = imageMap["slide_id"]?.toString(),
+                    pageNumber = imageMap["page_number"]?.toString()?.toIntOrNull()
                 )
+                imageSources.add(imageSource)
+                println("    Added image source: slideId=${imageSource.slideId}, pageNumber=${imageSource.pageNumber}")
+            } catch (e: Exception) {
+                println("    Error parsing image source: ${e.message}")
             }
-        } ?: emptyList()
-        
-        imageSources.addAll(agentImageSources)
+        }
         
         println("  Final sources: RAG=${ragSources.size}, Web=${webSources.size}, Image=${imageSources.size}")
         return Triple(ragSources, webSources, imageSources)
@@ -535,6 +614,41 @@ class ChatMongoDAO(
         }
         
         return Pair(ragSources, webSources)
+    }
+    
+    private fun parseImageToolMessage(toolMessage: AgentMessage): ImageSource? {
+        try {
+            // Parse JSON content from tool message
+            val data = objectMapper.readTree(toolMessage.content)
+            
+            // Check if the tool call was successful
+            val success = data.get("success")?.asBoolean(false) ?: false
+            if (!success) {
+                return null
+            }
+            
+            when (toolMessage.name) {
+                "current_user_view", "previous_user_view" -> {
+                    // Parse image source data
+                    val s3key = data.get("s3key")?.asText()
+                    val slideId = data.get("slide_id")?.asText()
+                    val pageNumber = data.get("page_number")?.asInt()
+                    
+                    return ImageSource(
+                        id = "page",
+                        type = if (toolMessage.name == "current_user_view") "current" else "previous",
+                        messageId = null,
+                        timestamp = null,
+                        slideId = slideId,
+                        pageNumber = pageNumber
+                    )
+                }
+            }
+        } catch (e: Exception) {
+            println("Error parsing image tool message ${toolMessage.id}: ${e.message}")
+        }
+        
+        return null
     }
     
     private fun extractSourcesFromAgentMessage(msg: AgentMessage): Pair<List<RagSource>, List<WebSource>> {

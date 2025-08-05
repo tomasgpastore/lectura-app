@@ -15,12 +15,16 @@ import org.springframework.web.bind.annotation.RestController
 import org.springframework.web.multipart.MultipartFile
 import staffbase.lectura.auth.AuthenticationService
 import staffbase.lectura.dto.slide.PatchSlideDTO
+import staffbase.lectura.subscription.SubscriptionLimitService
+import staffbase.lectura.exception.SubscriptionLimitException
+import kotlinx.coroutines.runBlocking
 
 @RestController
 @RequestMapping("/courses/{courseId}/slides")
 class SlideController(
     val slideService: SlideService,
-    val authenticationService: AuthenticationService
+    val authenticationService: AuthenticationService,
+    val subscriptionLimitService: SubscriptionLimitService
 ) {
 
     @GetMapping
@@ -46,9 +50,21 @@ class SlideController(
     fun addSlideForCourse(
         @PathVariable courseId: String,
         @RequestParam("file") file: MultipartFile
-    ): ResponseEntity<Void> {
+    ): ResponseEntity<Void> = runBlocking {
         val userId = authenticationService.requireCurrentUserId()
-        return if (slideService.addSlideForCourse(userId, courseId, file)) ResponseEntity.status(HttpStatus.CREATED).build() else ResponseEntity.notFound().build()
+        
+        // Check subscription limit
+        val limitCheck = subscriptionLimitService.checkFileUploadLimit(userId, courseId)
+        if (!limitCheck.allowed) {
+            throw SubscriptionLimitException(
+                reason = limitCheck.reason ?: "File upload limit reached",
+                limit = limitCheck.limit,
+                current = limitCheck.current,
+                requiredPlan = limitCheck.requiredPlan
+            )
+        }
+        
+        if (slideService.addSlideForCourse(userId, courseId, file)) ResponseEntity.status(HttpStatus.CREATED).build() else ResponseEntity.notFound().build()
     }
 
     @DeleteMapping("/{slideId}")

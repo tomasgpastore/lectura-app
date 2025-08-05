@@ -15,4 +15,9 @@ data class User(
     val courseId: List<String>,
     val picture: String,
     val createdAt: Instant = Instant.now(),
+    val stripeCustomerId: String? = null,
+    val subscriptionStatus: String? = null,
+    val subscriptionTier: String? = null,
+    val subscriptionId: String? = null,
+    val subscriptionExpiresAt: Instant? = null
 )

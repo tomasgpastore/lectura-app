@@ -64,6 +64,8 @@ dependencies {
 
 	implementation("org.springframework.boot:spring-boot-starter-security")
 
+	implementation("com.stripe:stripe-java:29.4.0")
+
 	testImplementation("org.springframework.boot:spring-boot-starter-test") {
 		exclude(module = "mockito-core")
 	}

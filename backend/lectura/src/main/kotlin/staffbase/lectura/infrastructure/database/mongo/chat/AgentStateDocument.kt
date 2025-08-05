@@ -42,6 +42,8 @@ data class AgentMessage(
     val webSourceIds: List<String>? = null, // References to tool messages with web sources
     @JsonProperty("image_source_ids")
     val imageSourceIds: List<String>? = null, // References to tool messages with image sources
+    @JsonProperty("image_source")
+    val imageSource: Map<String, Any>? = null, // Direct image source in AI messages (singular)
     val sources: MessageSources? = null // Legacy: Sources embedded in AI messages
 )
 
