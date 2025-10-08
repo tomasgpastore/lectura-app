@@ -9,7 +9,7 @@ LecturaLM is a full-stack AI learning platform designed to revolutionize how stu
 ### Key Features
 
 - 📚 **Smart PDF Processing** - Upload and automatically chunk course materials with intelligent semantic segmentation
-- 🤖 **AI Chat Assistant** - Interactive Q&A with Google Gemini 2.0 Flash that understands your course context
+- 🤖 **AI Chat Assistant** - Interactive Q&A with Google Gemini 2.5 Flash that understands your course context
 - 🔍 **Hybrid Search** - RAG (Retrieval-Augmented Generation) with vector similarity search + web search via Tavily
 - 📊 **Course Management** - Organize multiple courses with granular slide-level tracking
 - 💬 **Conversation History** - Persistent chat history with MongoDB storage
